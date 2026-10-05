@@ -12,6 +12,8 @@ use qingjian_platform::protocol::IndicatorCommand;
 
 /// 打开菜单时的勾选状态。
 pub(crate) struct MenuState {
+    pub(crate) learning: bool,
+    pub(crate) privacy: bool,
     pub(crate) english: bool,
     pub(crate) english_enabled: bool,
     pub(crate) full_width: bool,
@@ -31,6 +33,8 @@ const ID_PUNCTUATION: u32 = 3;
 const ID_STATUS_BAR: u32 = 4;
 const ID_SETTINGS: u32 = 5;
 const ID_DOWNLOAD: u32 = 6;
+const ID_LEARNING: u32 = 7;
+const ID_PRIVACY: u32 = 8;
 
 /// 在 `point`（屏幕坐标）弹出菜单，阻塞到用户点了某项或点别处关掉。
 pub(crate) fn track(owner: HWND, point: POINT, state: &MenuState) -> Option<MenuChoice> {
@@ -46,6 +50,8 @@ pub(crate) fn track(owner: HWND, point: POINT, state: &MenuState) -> Option<Menu
         None,
         Some((ID_PUNCTUATION, "全角标点", checked(state.full_width))),
         Some((ID_STATUS_BAR, "悬浮状态条", checked(state.status_bar))),
+        Some((ID_LEARNING, "词汇学习", checked(state.learning))),
+        Some((ID_PRIVACY, "隐私模式", checked(state.privacy))),
         None,
     ];
     if state.update_available {
@@ -76,6 +82,8 @@ pub(crate) fn track(owner: HWND, point: POINT, state: &MenuState) -> Option<Menu
         ID_STATUS_BAR => Some(MenuChoice::Server(IndicatorCommand::ToggleStatusBar)),
         ID_SETTINGS => Some(MenuChoice::Server(IndicatorCommand::OpenSettings)),
         ID_DOWNLOAD => Some(MenuChoice::Server(IndicatorCommand::OpenDownload)),
+        ID_LEARNING => Some(MenuChoice::Server(IndicatorCommand::ToggleLearning)),
+        ID_PRIVACY => Some(MenuChoice::Server(IndicatorCommand::TogglePrivacy)),
         _ => None,
     }
 }

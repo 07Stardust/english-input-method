@@ -7,7 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "qingjian-server"
+name = "english-ime-server"
 path = "src/main.rs"
 
 # 嵌 uiAccess manifest（见 build.rs）
@@ -31,6 +31,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-appender.workspace = true
 toml_edit.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true

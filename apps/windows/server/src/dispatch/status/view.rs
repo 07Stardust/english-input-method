@@ -3,6 +3,10 @@ use qingjian_platform::ThemeMode;
 /// 状态条一次要显示的内容。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatusView {
+    pub learning: bool,
+
+    pub privacy: bool,
+
     /// 英文模式（`false` 中文）。
     pub english: bool,
 

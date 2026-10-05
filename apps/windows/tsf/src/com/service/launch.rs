@@ -2,7 +2,7 @@
 //!
 //! Server 只在登录时由「启动」文件夹的快捷方式拉起（Explorer 走 `ShellExecute`，见 `qingjian.iss`），
 //! 中途挂了（崩溃 / 被杀 / 装完没重启）以前 DLL 只能静默吞键到下次登录。这里在连接失败后起一次与
-//! DLL 同目录的 `qingjian-server.exe`：用 `ShellExecuteW` 而不是 `CreateProcess`——`uiAccess=true`
+//! DLL 同目录的 `english-ime-server.exe`：用 `ShellExecuteW` 而不是 `CreateProcess`——`uiAccess=true`
 //! 的 exe 用 `CreateProcess` 拉不起来（报 740），ShellExecute 等同双击，两种构建都行。
 //!
 //! 两道闸门防重复启动：进程内的冷却时间（同一应用连敲只试一次），与跨进程的命名互斥体
@@ -41,10 +41,10 @@ use crate::com::module_path;
 const LAUNCH_COOLDOWN: Duration = Duration::from_secs(5);
 
 /// 跨进程互斥体：多个应用的 DLL 同时发现 Server 不在时只起一个（第二个起来的抢不到管道会自己退出）。
-const LAUNCH_MUTEX: windows::core::PCWSTR = w!("Local\\QingjianServerLaunch");
+const LAUNCH_MUTEX: windows::core::PCWSTR = w!("Local\\EnglishInputMethodServerLaunch");
 
 /// 安装 / 卸载程序运行期间持有的互斥体，名字与 `qingjian.iss` 的 `HoldInstallerMutex` 一致。
-const INSTALLER_MUTEX: windows::core::PCWSTR = w!("Global\\QingjianInstaller");
+const INSTALLER_MUTEX: windows::core::PCWSTR = w!("Global\\EnglishInputMethodInstaller");
 
 /// 普通桌面应用的完整性级别 RID（UAC 未提升的用户进程）。低一档是 AppContainer / 浏览器沙箱，
 /// 高一档是管理员提升、SYSTEM 与安全桌面上的进程——那些里都不拉 Server。
@@ -67,7 +67,7 @@ pub(super) fn launch_server() -> bool {
         return false;
     }
     let Some(exe) = server_exe() else {
-        log("找不到与 DLL 同目录的 qingjian-server.exe，不拉起");
+        log("找不到与 DLL 同目录的 english-ime-server.exe，不拉起");
         return false;
     };
     let Some(_mutex) = launch_mutex() else {
@@ -92,11 +92,11 @@ pub(super) fn launch_server() -> bool {
     };
     // ShellExecuteW 返回值 > 32 才算成功。
     if (code.0 as isize) > 32 {
-        log("已请求启动 qingjian-server");
+        log("已请求启动 english-ime-server");
         true
     } else {
         log(&format!(
-            "启动 qingjian-server 失败，返回值 {}",
+            "启动 english-ime-server 失败，返回值 {}",
             code.0 as isize
         ));
         false
@@ -200,9 +200,9 @@ fn server_exe() -> Option<PathBuf> {
     Some(server_exe_path(Path::new(&module.to_string())))
 }
 
-/// 与 DLL 同目录的 `qingjian-server.exe`（安装器把两者装在同一目录）。
+/// 与 DLL 同目录的 `english-ime-server.exe`（安装器把两者装在同一目录）。
 fn server_exe_path(module: &Path) -> PathBuf {
-    module.with_file_name("qingjian-server.exe")
+    module.with_file_name("english-ime-server.exe")
 }
 
 #[cfg(test)]
@@ -215,9 +215,9 @@ mod tests {
     fn server_exe_sits_next_to_the_dll() {
         assert_eq!(
             server_exe_path(Path::new(
-                r"D:\Program Files\Qingjian\qingjian_tsf-0.1.0-alpha.15-dev.dll"
+                r"D:\Program Files\EnglishInputMethod\english_ime_tsf-0.1.0-alpha.15-dev.dll"
             )),
-            Path::new(r"D:\Program Files\Qingjian\qingjian-server.exe")
+            Path::new(r"D:\Program Files\EnglishInputMethod\english-ime-server.exe")
         );
     }
 }

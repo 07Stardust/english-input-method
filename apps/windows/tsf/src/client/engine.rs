@@ -36,9 +36,9 @@ impl<S: Read + Write> EngineClient<S> {
                 protocol: PROTOCOL_VERSION,
             },
         )?;
-        let input = match read_message(&mut stream)?.ok_or(ClientError::Closed)? {
-            ServerMessage::SessionOpened { input, .. } => input,
-            _ => InputSettings::default(),
+        let (session, input) = match read_message(&mut stream)?.ok_or(ClientError::Closed)? {
+            ServerMessage::SessionOpened { session, input, .. } => (session, input),
+            _ => return Err(ClientError::Unexpected("协议不兼容，请重启应用")),
         };
         Ok((
             Self {
@@ -56,7 +56,10 @@ impl<S: Read + Write> EngineClient<S> {
 
     /// 在一条临时流上通知 Server「本线程切成了别的输入法」（状态条收起）。不开会话、不回话。
     pub fn notify_ime_switched(mut stream: S, session: SessionId) -> Result<(), ClientError> {
-        write_message(&mut stream, &ClientMessage::ImeSwitched { session })?;
+        let (mut client, _) = EngineClient::open(&mut stream, session, None)?;
+        client.send(&ClientMessage::ImeSwitched {
+            session: client.session,
+        })?;
         Ok(())
     }
 

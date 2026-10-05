@@ -100,6 +100,16 @@ impl ITfTextInputProcessor_Impl for TextService_Impl {
             && let Ok(keystroke) = thread_mgr.cast::<ITfKeystrokeMgr>()
         {
             self.drop_switch_preserved_key(&keystroke);
+            for (index, combo) in self
+                .study_shortcuts
+                .replace([None; 2])
+                .into_iter()
+                .enumerate()
+            {
+                if let Some(combo) = combo {
+                    preserved::unregister_study(&keystroke, index, combo);
+                }
+            }
             if let Some(combo) = self.translate_combo.take() {
                 preserved::unregister(&keystroke, combo);
             }

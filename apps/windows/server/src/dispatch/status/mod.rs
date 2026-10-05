@@ -42,6 +42,28 @@ impl Router {
     /// 状态条上的操作。
     pub fn handle_status_event(&mut self, event: StatusEvent) {
         match event {
+            StatusEvent::ToggleLearning => {
+                self.config.study.enabled = !self.config.study.enabled;
+                self.engine.set_study_enabled(self.config.study.enabled);
+                self.persist("study", "enabled", self.config.study.enabled);
+                self.recompose();
+            }
+            StatusEvent::TogglePrivacy => {
+                self.config.study.privacy = !self.config.study.privacy;
+                let input_private = self
+                    .focused
+                    .and_then(|session| self.sessions.get(&session))
+                    .is_some_and(|info| info.private);
+                self.engine
+                    .set_private(self.config.study.privacy || input_private);
+                if self.engine.is_private() {
+                    self.end_translation();
+                    self.pending_selection = None;
+                }
+                self.persist("study", "privacy", self.config.study.privacy);
+                self.cancel_prediction();
+                self.recompose();
+            }
             StatusEvent::ToggleMode => {
                 // 关掉内置英文模式后这一格不切模式：DLL 那边也会拦（配置改了没切走再切回时两边都挡住）
                 if !self.config.english_mode {
@@ -77,6 +99,10 @@ impl Router {
     /// 任务栏图标右键菜单：标点与悬浮条的开关写回配置文件（热加载会再读回来），设置程序交给 UI 起。
     pub(super) fn handle_indicator(&mut self, command: IndicatorCommand) {
         match command {
+            IndicatorCommand::ToggleLearning => {
+                self.handle_status_event(StatusEvent::ToggleLearning)
+            }
+            IndicatorCommand::TogglePrivacy => self.handle_status_event(StatusEvent::TogglePrivacy),
             IndicatorCommand::TogglePunctuation => {
                 self.handle_status_event(StatusEvent::TogglePunctuation);
             }
@@ -114,6 +140,8 @@ impl Router {
         match self.ime_active.then_some(self.english) {
             Some(english) if self.config.status_enabled => {
                 self.status.show_status(StatusView {
+                    learning: self.config.study.enabled,
+                    privacy: self.engine.is_private(),
                     english,
                     zhuyin: self.config.scheme == Scheme::Zhuyin,
                     // 现算，不存下来：存了会与 scheme / wubi 冗余、手搓配置的地方就漂移

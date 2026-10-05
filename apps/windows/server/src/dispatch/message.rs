@@ -53,7 +53,7 @@ impl Router {
             ClientMessage::Poll { session } => Some(self.handle_poll(session)),
             ClientMessage::Commit { session } => {
                 let text = self.commit_raw_for(session);
-                tracing::debug!(?session, ?text, "焦点离开，结束组句");
+                tracing::debug!(?session, "焦点离开，结束组句");
                 Some(ServerMessage::Committed { session, text })
             }
             ClientMessage::Surrounding { session, text } => {
@@ -122,6 +122,35 @@ impl Router {
     }
 
     fn handle_key(&mut self, session: SessionId, event: KeyEvent) -> ServerMessage {
+        for (shortcut, command) in [
+            (
+                self.config.study.toggle_learning.clone(),
+                qingjian_platform::protocol::IndicatorCommand::ToggleLearning,
+            ),
+            (
+                self.config.study.toggle_privacy.clone(),
+                qingjian_platform::protocol::IndicatorCommand::TogglePrivacy,
+            ),
+        ] {
+            if !shortcut.is_empty()
+                && shortcut
+                    .parse::<qingjian_platform::KeyCombo>()
+                    .is_ok_and(|combo| {
+                        event
+                            .character
+                            .is_some_and(|key| key.eq_ignore_ascii_case(&combo.key))
+                            && event.modifiers == combo.modifiers.into()
+                    })
+            {
+                self.handle_indicator(command);
+                return ServerMessage::KeyResult {
+                    session,
+                    outcome: KeyOutcome::Consumed,
+                    commit: None,
+                    frame: self.current_frame(),
+                };
+            }
+        }
         self.ensure_focus(session);
         self.notice = None;
         if self.translation.is_some() {
@@ -129,6 +158,7 @@ impl Router {
         }
         if self.engine.composition().is_empty()
             && self.engine.prediction_enabled()
+            && !self.engine.is_private()
             && self.matches_translate_combo(&event)
         {
             self.selection_seq += 1;

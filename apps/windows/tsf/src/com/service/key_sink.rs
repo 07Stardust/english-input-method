@@ -63,6 +63,21 @@ impl ITfKeyEventSink_Impl for TextService_Impl {
     /// 「翻译选中文字」当作按下了那个组合键转发给 Server（绕过 `would_eat`）。
     fn OnPreservedKey(&self, pic: Ref<ITfContext>, rguid: *const GUID) -> Result<BOOL> {
         let guid = unsafe { *rguid };
+        if let Some(index) = preserved::GUID_STUDY
+            .iter()
+            .position(|candidate| *candidate == guid)
+        {
+            if self.keyboard_disabled(&pic) {
+                return Ok(FALSE);
+            }
+            let command = if index == 0 {
+                qingjian_platform::protocol::IndicatorCommand::ToggleLearning
+            } else {
+                qingjian_platform::protocol::IndicatorCommand::TogglePrivacy
+            };
+            self.send_indicator(command);
+            return Ok(true.into());
+        }
         log(&format!("保留键命中 guid={guid:?}"));
         if guid == preserved::GUID_SWITCH_MODE {
             if self.keyboard_disabled(&pic) {

@@ -10,11 +10,24 @@ use crate::panel::{Message, Settings};
 /// 后台跑一次连通性测试，轮询到有结果或被取消。
 pub(crate) fn run_test(
     config: &PredictConfig,
+    path: &std::path::Path,
     cancel: &CancellationToken,
+    epoch: &std::sync::atomic::AtomicU64,
+    expected: u64,
 ) -> Result<String, String> {
+    // 状态条和快捷键也能改隐私设置；后台直接核验文件，读失败则停止云测试。
+    let is_private =
+        || qingjian_platform::Config::load(path).map_or(true, |value| value.study.privacy);
+    if is_private() {
+        return Err("隐私模式下不发起云请求".into());
+    }
     let test = ConnectionTest::start(config).map_err(|error| error.to_string())?;
     loop {
-        if cancel.is_cancelled() {
+        if is_private() {
+            epoch.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+            return Err("已取消".into());
+        }
+        if cancel.is_cancelled() || epoch.load(std::sync::atomic::Ordering::Acquire) != expected {
             return Err("已取消".to_owned());
         }
         if let Some(result) = test.poll() {
@@ -89,7 +102,7 @@ pub(crate) fn view(settings: &Settings, context: &mut ViewContext<Settings>) -> 
             "API 密钥",
             "只保存在这台电脑上，不会随配置文件导出，也不显示已填的值。留空则读环境变量 QINGJIAN_API_KEY。",
             PasswordBox::new()
-                .password(p.api_key.clone().unwrap_or_default())
+                .password(&settings.cloud_key_draft)
                 .placeholder_text("留空则读环境变量 QINGJIAN_API_KEY")
                 .on_password_changed(context.callback(Message::CloudApiKey)),
         ),
@@ -99,6 +112,9 @@ pub(crate) fn view(settings: &Settings, context: &mut ViewContext<Settings>) -> 
                 .orientation(Orientation::Horizontal)
                 .spacing(12.0)
                 .children((
+                    Button::new()
+                        .on_click(context.message(Message::CloudClearKey))
+                        .content("清除本地密钥"),
                     Button::new()
                         .on_click(context.message(Message::TestConnection))
                         .content("测试连接"),

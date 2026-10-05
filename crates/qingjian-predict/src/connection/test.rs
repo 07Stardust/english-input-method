@@ -2,6 +2,10 @@
 //! 起一个线程用当前配置发一条最小的聊天请求，结果经通道回来；调用方在主线程轮询 [`ConnectionTest::poll`]。
 
 use std::sync::mpsc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::Instant;
 
 use super::report::ConnectionReport;
@@ -22,6 +26,7 @@ const MAX_TOKENS: u32 = 32;
 pub struct ConnectionTest {
     /// 测试线程送回的结果；线程只发一次。
     result: mpsc::Receiver<Result<ConnectionReport, PredictError>>,
+    epoch: Arc<AtomicU64>,
 }
 
 impl ConnectionTest {
@@ -33,23 +38,24 @@ impl ConnectionTest {
         let client = ChatClient::new(config, api_key);
         let model = config.model.clone();
         let (sender, result) = mpsc::channel();
+        let epoch = Arc::new(AtomicU64::new(0));
+        let worker_epoch = epoch.clone();
         std::thread::Builder::new()
             .name("qingjian-connection-test".to_owned())
             .spawn(move || {
-                let outcome = run(&client, model);
+                let outcome = run(&client, model, &worker_epoch);
                 match &outcome {
                     Ok(report) => tracing::info!(
                         model = %report.model,
                         elapsed_ms = report.elapsed.as_millis() as u64,
-                        reply = %report.reply,
                         "云服务连通性测试成功"
                     ),
-                    Err(error) => tracing::warn!(error = ?error, "云服务连通性测试失败"),
+                    Err(_) => tracing::warn!("云服务连通性测试失败"),
                 }
                 // 收的一方不在了（窗口关了、又点了一次）就算了
                 let _ = sender.send(outcome);
             })?;
-        Ok(Self { result })
+        Ok(Self { result, epoch })
     }
 
     /// 结果到了就取走；没到返回 `None`。取走之后再调永远是 `None`。
@@ -58,13 +64,34 @@ impl ConnectionTest {
     }
 }
 
+impl Drop for ConnectionTest {
+    fn drop(&mut self) {
+        self.epoch.fetch_add(1, Ordering::AcqRel);
+    }
+}
+
 /// 在测试线程里跑：建一个单线程运行时，发一条请求，计时。
-fn run(client: &ChatClient, model: String) -> Result<ConnectionReport, PredictError> {
+fn run(
+    client: &ChatClient,
+    model: String,
+    epoch: &AtomicU64,
+) -> Result<ConnectionReport, PredictError> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
     let started = Instant::now();
-    let reply = runtime.block_on(client.chat(SYSTEM_PROMPT, USER_PROMPT, MAX_TOKENS))?;
+    let Some(reply) = runtime.block_on(crate::cancellation::run(
+        epoch,
+        0,
+        client.chat(SYSTEM_PROMPT, USER_PROMPT, MAX_TOKENS),
+    )) else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Interrupted,
+            "connection test cancelled",
+        )
+        .into());
+    };
+    let reply = reply?;
     Ok(ConnectionReport {
         model,
         elapsed: started.elapsed(),

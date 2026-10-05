@@ -5,6 +5,14 @@ use super::*;
 use crate::engine::decoded::EngineDecoded;
 
 impl Engine {
+    pub fn set_study_enabled(&mut self, enabled: bool) {
+        self.study_enabled = enabled;
+        self.displayed.clear();
+        if !enabled {
+            self.gloss_filler.cancel();
+        }
+    }
+
     /// 设置中文模式的标点转换。
     pub fn set_full_width_punctuation(&mut self, enabled: bool) {
         self.full_width_punctuation = enabled;

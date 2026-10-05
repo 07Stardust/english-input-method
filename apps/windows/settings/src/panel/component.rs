@@ -22,6 +22,11 @@ impl Component for Settings {
         Self::ensure_config_file(&path);
         let config = Config::load(&path).unwrap_or_default();
         Self {
+            cloud_key_draft: String::new(),
+            cloud_test_epoch: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            study: super::study::StudyUi::new(
+                path.parent().unwrap_or_else(|| std::path::Path::new(".")),
+            ),
             config,
             path,
             page: "general".to_string(),
@@ -42,7 +47,13 @@ impl Component for Settings {
 
     fn update(&mut self, message: Message, context: &ComponentContext<Self>) {
         match message {
+            message if message.is_study() => self.study_action(message, context),
             Message::Navigate(Some(tag)) => {
+                if tag == "study" {
+                    self.study.vocabulary = qingjian_learning::VocabularyBook::open(
+                        self.data_dir().join("user-vocab.tsv"),
+                    );
+                }
                 self.page = tag;
                 // 上一页的导入提示不跟着过来
                 self.notice.clear();
@@ -134,7 +145,16 @@ impl Component for Settings {
             // 云服务页
             Message::LocalModel(on) => self.save("model", "enabled", on),
             Message::CloudEnabled(on) => self.save("predict", "enabled", on),
-            Message::CloudApiKey(value) => self.save("predict", "api_key", value),
+            Message::CloudApiKey(value) => {
+                if value != self.cloud_key_draft {
+                    self.cloud_key_draft = value.clone();
+                    self.save("predict", "api_key", value);
+                }
+            }
+            Message::CloudClearKey => {
+                self.cloud_key_draft.clear();
+                self.save("predict", "api_key", "");
+            }
             Message::CloudModel(value) => self.save("predict", "model", value),
             Message::CloudBaseUrl(value) => self.save("predict", "base_url", value),
             Message::CloudSlots(Some(value)) => {
@@ -143,16 +163,37 @@ impl Component for Settings {
             }
             Message::CloudSentence(on) => self.save("predict", "sentence", on),
             Message::TestConnection => {
+                self.reload();
+                if self.config.study.privacy {
+                    self.cloud_status = CloudStatus::Failed("隐私模式下不发起云请求".into());
+                    return;
+                }
                 if matches!(self.cloud_status, CloudStatus::Testing) {
                     return;
                 }
                 self.cloud_status = CloudStatus::Testing;
                 let config = self.config.predict.clone();
+                let path = self.path.clone();
+                let epoch = self.cloud_test_epoch.clone();
+                let expected = epoch.load(std::sync::atomic::Ordering::Acquire);
                 context.spawn_background(move |cancel| {
-                    Message::CloudTestDone(cloud::run_test(&config, &cancel))
+                    Message::CloudTestDone(
+                        expected,
+                        cloud::run_test(&config, &path, &cancel, &epoch, expected),
+                    )
                 });
             }
-            Message::CloudTestDone(result) => {
+            Message::CloudTestDone(expected, result) => {
+                self.reload();
+                if self.config.study.privacy
+                    || self
+                        .cloud_test_epoch
+                        .load(std::sync::atomic::Ordering::Acquire)
+                        != expected
+                {
+                    self.cloud_status = CloudStatus::Idle;
+                    return;
+                }
                 self.cloud_status = match result {
                     Ok(message) => CloudStatus::Ok(message),
                     Err(message) => CloudStatus::Failed(message),
@@ -277,36 +318,18 @@ impl Component for Settings {
 
             // 关于页
             Message::OpenWebsite => open_with_explorer(about::WEBSITE_URL),
-            Message::OpenDownload => open_with_explorer(qingjian_update::DOWNLOAD_URL),
+            Message::OpenDownload => open_with_explorer(about::REPOSITORY_URL),
 
             // 关于页：检查更新
-            Message::UpdateCheck(on) => self.save("update", "check", on),
+            Message::UpdateCheck(on) => {
+                let _ = on;
+                self.save("update", "check", false);
+            }
             Message::UpdateChannel(Some(i)) if i < UpdateChannel::ALL.len() => {
                 self.save("update", "channel", UpdateChannel::ALL[i].key());
             }
             Message::CheckUpdateNow => {
-                let Some(path) = Self::update_state_path() else {
-                    return;
-                };
-                if self.update_checking {
-                    return;
-                }
-                self.update_checking = true;
-                self.update_error = None;
-                let config = self.config.update.clone();
-                context.spawn_background(move |_cancel| {
-                    let result =
-                        qingjian_update::Checker::check_blocking(&path, about::VERSION, &config);
-                    Message::UpdateChecked(result.map(|r| r.map_err(|error| error.to_string())))
-                });
-            }
-            Message::UpdateChecked(result) => {
-                self.update_checking = false;
-                match result {
-                    Some(Ok(state)) => self.update_state = state,
-                    Some(Err(error)) => self.update_error = Some(error),
-                    None => {}
-                }
+                self.update_error = Some("本产品暂未建立更新通道".into());
             }
             Message::OpenRepository => open_with_explorer(about::REPOSITORY_URL),
 
@@ -316,7 +339,7 @@ impl Component for Settings {
     }
 
     fn view(&self, _input: &(), context: &mut ViewContext<Self>) -> View {
-        context.window_title("青简设置");
+        context.window_title("English Input Method 设置");
         let item = |tag: &str, label: &str, symbol| {
             KeyedView::new(
                 tag,
@@ -333,6 +356,7 @@ impl Component for Settings {
             )
         };
         let items = [
+            item("study", "词书与学习", Symbol::Library),
             item("general", "通用", Symbol::Setting),
             item("candidates", "候选窗口", Symbol::View),
             item("shortcut", "快捷键", Symbol::Keyboard),
@@ -346,7 +370,7 @@ impl Component for Settings {
         ];
         NavigationView::new()
             .pane_display_mode(NavigationViewPaneDisplayMode::Left)
-            .pane_title("青简")
+            .pane_title("English Input Method")
             .open_pane_length(220.0)
             .is_pane_open(true)
             .is_pane_toggle_button_visible(false)

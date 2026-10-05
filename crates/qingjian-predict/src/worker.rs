@@ -1,6 +1,10 @@
 //! 后台线程：收请求、防抖、查缓存、发网络请求、回结果。
 
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::{Duration, Instant};
 
 use qingjian_core::{Prediction, PredictionRequest};
@@ -16,7 +20,9 @@ const CACHE_CAPACITY: usize = 64;
 
 pub struct Worker {
     /// 请求入口。主线程 drop 掉发送端后线程自然退出。
-    requests: Receiver<PredictionRequest>,
+    requests: Receiver<(u64, PredictionRequest)>,
+
+    epoch: Arc<AtomicU64>,
 
     /// 结果出口。
     responses: Sender<Prediction>,
@@ -29,6 +35,7 @@ pub struct Worker {
 
     /// 结果缓存。
     cache: PredictionCache,
+    cache_epoch: u64,
 }
 
 /// 缓存里存的是解析后的回复。
@@ -36,17 +43,20 @@ type Cached = Reply;
 
 impl Worker {
     pub fn new(
-        requests: Receiver<PredictionRequest>,
+        requests: Receiver<(u64, PredictionRequest)>,
         responses: Sender<Prediction>,
         client: ChatClient,
         debounce: Duration,
+        epoch: Arc<AtomicU64>,
     ) -> Self {
         Self {
             requests,
             responses,
             client,
             debounce,
+            epoch,
             cache: PredictionCache::with_capacity(CACHE_CAPACITY),
+            cache_epoch: 0,
         }
     }
 
@@ -56,9 +66,16 @@ impl Worker {
             .enable_all()
             .build()?;
         while let Ok(first) = self.requests.recv() {
-            let Some(request) = self.debounce(first) else {
+            let Some((epoch, request)) = self.debounce(first) else {
                 return Ok(());
             };
+            if epoch != self.epoch.load(Ordering::Acquire) {
+                continue;
+            }
+            if self.cache_epoch != epoch {
+                self.cache = PredictionCache::with_capacity(CACHE_CAPACITY);
+                self.cache_epoch = epoch;
+            }
             let key = PredictionCache::key(&request);
             if let Some(reply) = self.cache.get(&key) {
                 tracing::debug!(sequence = request.sequence, kind = ?request.kind, "联想命中缓存");
@@ -66,8 +83,12 @@ impl Worker {
                 continue;
             }
             let start = Instant::now();
-            match runtime.block_on(self.client.complete(&request)) {
-                Ok(reply) => {
+            match runtime.block_on(crate::cancellation::run(
+                &self.epoch,
+                epoch,
+                self.client.complete(&request),
+            )) {
+                Some(Ok(reply)) => {
                     tracing::info!(
                         sequence = request.sequence,
                         elapsed_ms = start.elapsed().as_millis(),
@@ -82,16 +103,17 @@ impl Worker {
                     }
                     self.reply(request.sequence, reply);
                 }
-                Err(error) => {
-                    tracing::warn!(sequence = request.sequence, %error, "联想失败");
+                Some(Err(_)) => {
+                    tracing::warn!(sequence = request.sequence, "联想失败");
                 }
+                None => {}
             }
         }
         Ok(())
     }
 
     /// 防抖：在窗口内持续收到新请求就一直等，只保留最后一个。发送端关闭返回 `None`。
-    fn debounce(&self, mut latest: PredictionRequest) -> Option<PredictionRequest> {
+    fn debounce(&self, mut latest: (u64, PredictionRequest)) -> Option<(u64, PredictionRequest)> {
         loop {
             match self.requests.recv_timeout(self.debounce) {
                 Ok(newer) => latest = newer,

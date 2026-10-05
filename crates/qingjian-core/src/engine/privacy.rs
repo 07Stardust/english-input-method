@@ -15,7 +15,21 @@ impl Engine {
         self.private = private;
         self.learner.set_private(private);
         self.logger.set_muted(private);
+        // 两侧都清除前文与暂存学习链，避免私密上屏内容在恢复后进入云请求或输入日志。
+        self.history.clear();
+        self.chain.reset();
+        self.recent_commits.clear();
+        self.recording.clear();
+        self.passthrough_pending.clear();
+        self.retype_snapshot = None;
+        self.last_prediction_scope.clear();
+        self.last_question_guess.clear();
+        *self.neural_cache.borrow_mut() = super::rescoring::NeuralCache::default();
+        *self.last_query.borrow_mut() = None;
         if private {
+            self.predictor.cancel();
+            self.gloss_filler.cancel();
+            self.displayed.clear();
             // 在飞的云结果不能再显示，前文也不能留
             self.prediction_sequence += 1;
             self.rescoring_before = None;

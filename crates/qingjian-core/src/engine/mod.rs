@@ -171,6 +171,9 @@ pub struct Engine {
     /// 私密输入中（见 [`Self::set_private`]）：不学、不记、不发云端。
     private: bool,
 
+    /// 词汇学习展示与记录的独立开关。
+    study_enabled: bool,
+
     /// 输入日志条目的序号。
     log_sequence: u64,
 
@@ -414,6 +417,7 @@ impl Engine {
             recent_commits: Vec::new(),
             logger: input_log::MutedLogger::new(Box::new(NoInputLogger)),
             private: false,
+            study_enabled: true,
             log_sequence: 0,
             last_rescored: std::cell::Cell::new(false),
             retype_snapshot: None,

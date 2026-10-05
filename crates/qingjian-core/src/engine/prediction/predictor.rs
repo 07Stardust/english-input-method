@@ -7,6 +7,9 @@ use super::response::Prediction;
 /// 「最新请求优先」：实现收到新请求时可以直接丢掉还没发出去的旧请求；
 /// Engine 只认序号等于最近一次提交的结果，其余一律丢弃。
 pub trait Predictor: Send {
+    /// 取消排队和在飞请求；实现必须丢弃旧结果。
+    fn cancel(&mut self) {}
+
     /// 观察窗口、条数上限与开关。
     fn policy(&self) -> PredictionPolicy;
 

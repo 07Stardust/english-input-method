@@ -15,7 +15,7 @@ use crate::panel::{Message, Settings};
 /// 随包码表目录：随包根下的 `data/generated/codes/`（与 `dicts/` 并列），与 Server 装配同款。
 const BUNDLED_DIR: &str = "data/generated/codes";
 
-/// 用户导入的码表目录 `%APPDATA%\Qingjian\codes`。
+/// 用户导入的码表目录 `%APPDATA%\EnglishInputMethod\codes`。
 fn user_dir(settings: &Settings) -> PathBuf {
     settings.data_dir().join("codes")
 }
@@ -94,7 +94,7 @@ fn user_list(settings: &Settings, context: &mut ViewContext<Settings>) -> View {
     let tables = code_tables::list(&dir);
     if tables.is_empty() {
         return note(
-            "还没有导入码表。点下面「导入码表」加一张，或把 .qj 放进 %APPDATA%\\Qingjian\\codes。",
+            "还没有导入码表。点下面「导入码表」加一张，或把 .qj 放进 %APPDATA%\\EnglishInputMethod\\codes。",
         );
     }
     let mut rows: Vec<KeyedView> = Vec::with_capacity(tables.len());

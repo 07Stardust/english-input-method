@@ -7,10 +7,10 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 /// 缺省命名管道名。Server 在这上面监听，DLL 用同名连上。放这里让两端共享同一个字面量。
-pub const DEFAULT_PIPE_NAME: &str = r"\\.\pipe\qingjian";
+pub const DEFAULT_PIPE_NAME: &str = r"\\.\pipe\EnglishInputMethod";
 
 /// 单帧上限，挡住坏长度前缀导致的巨量分配。
-const MAX_FRAME: u32 = 16 * 1024 * 1024;
+const MAX_FRAME: u32 = 64 * 1024;
 
 /// 编解码错误。
 #[derive(Debug, thiserror::Error)]

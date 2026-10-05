@@ -1,4 +1,4 @@
-//! 设置程序自己的文件日志：`%LOCALAPPDATA%\Qingjian\logs\settings.<YYYY-MM-DD>.log`，与 Server / DLL 同目录。
+//! 设置程序自己的文件日志：`%LOCALAPPDATA%\EnglishInputMethod\logs\settings.<YYYY-MM-DD>.log`，与 Server / DLL 同目录。
 //! exe 是 GUI 子系统没有控制台，`eprintln!` 的字全丢；启动失败、保存配置失败这些得有地方看。
 //! 与 DLL 一样开文件追加一行、失败吞掉，只留最近 7 天（命名与清理在 `qingjian_platform::logs::daily`）。
 

@@ -26,7 +26,8 @@ impl Router {
             let app = self.focused_app().map(str::to_owned);
             self.engine.set_application(app);
             let private = self.focused_private();
-            self.engine.set_private(private);
+            self.engine
+                .set_private(private || self.config.study.privacy);
         }
     }
 
@@ -47,7 +48,12 @@ impl Router {
             info.private = private;
         }
         if self.focused == Some(session) {
-            self.engine.set_private(private);
+            self.engine
+                .set_private(private || self.config.study.privacy);
+            if self.engine.is_private() {
+                self.end_translation();
+                self.pending_selection = None;
+            }
         }
     }
 

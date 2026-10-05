@@ -1,6 +1,10 @@
 /// 用户在状态条上做的事，UI 线程发回 Router（打开设置不经过 Router，UI 线程自己起进程）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatusEvent {
+    ToggleLearning,
+
+    TogglePrivacy,
+
     /// 点了「中 / 英」格：翻转模式。
     ToggleMode,
 

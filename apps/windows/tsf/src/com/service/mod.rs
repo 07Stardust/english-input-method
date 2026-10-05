@@ -81,6 +81,7 @@ pub struct TextService {
 
     /// 登记成保留键的「翻译选中文字」组合；停用时撤掉（见 [`preserved`](crate::com::key::preserved)）。
     translate_combo: Cell<Option<KeyCombo>>,
+    study_shortcuts: Cell<[Option<KeyCombo>; 2]>,
 
     /// Ctrl + Alt + Space 切换键当前是否已登记为保留键（`[shortcut] switch_mode` 勾了它时才有）。
     switch_preserved: Cell<bool>,
@@ -174,6 +175,7 @@ impl TextService {
             key_tap: KeyTap::default(),
             profile_cookie: Cell::new(None),
             translate_combo: Cell::new(None),
+            study_shortcuts: Cell::new([None; 2]),
             switch_preserved: Cell::new(false),
             input_settings: Cell::new(None),
             indicator_state: Cell::new(IndicatorState::default()),

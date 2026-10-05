@@ -3,6 +3,8 @@ use crate::candidate::Language;
 
 /// 释义兜底的提供方。实现可以联网，接口非阻塞：`request` 只入队，`poll` 只取已到的。
 pub trait GlossFiller: Send {
+    fn cancel(&mut self) {}
+
     /// 是否真的会去问；`false` 时 Engine 不入队。
     fn is_enabled(&self) -> bool {
         true

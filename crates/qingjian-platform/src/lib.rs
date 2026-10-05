@@ -11,6 +11,10 @@ pub mod extra_dictionaries;
 pub mod logs;
 pub mod protocol;
 pub mod resources;
+pub mod secret_store;
+
+#[cfg(windows)]
+pub mod windows_security;
 
 pub use config::{
     AppsConfig, AuxCodeConfig, CandidateRenderer, Config, DEFAULT_DOMAINS,

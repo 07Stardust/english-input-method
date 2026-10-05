@@ -37,47 +37,38 @@ pub(super) fn log_dir() -> Option<PathBuf> {
 /// 用户反馈问题时一个附件搞定。压缩交给 PowerShell 的 Compress-Archive，不为此拉一个压缩库；
 /// 桌面路径也让 PowerShell 取（OneDrive 会把桌面挪到别处）。脚本先写成临时 .ps1 再跑，免得命令行引号转义。
 pub(super) fn export_logs() {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    let Some(logs) = log_dir() else {
-        return;
-    };
-    log::warn("用户导出日志");
-    let mut sources = vec![format!("'{}\\*'", logs.display())];
-    if let Some(config) = qingjian_platform::dirs::config_path().filter(|path| path.is_file()) {
-        sources.push(format!("'{}'", config.display()));
-    }
-    let zip_name = format!(
-        "qingjian-logs-{}.zip",
-        jiff::Zoned::now().strftime("%Y-%m-%d")
-    );
-    let script = format!(
-        "$zip = Join-Path ([Environment]::GetFolderPath('Desktop')) '{zip_name}'\n\
-         Compress-Archive -Path {} -DestinationPath $zip -Force\n\
-         explorer.exe \"/select,`\"$zip`\"\"\n",
-        sources.join(",")
-    );
-    let script_path = std::env::temp_dir().join("qingjian-export-logs.ps1");
-    if let Err(error) = std::fs::write(&script_path, script) {
-        log::warn(format!("写导出脚本失败: {error}"));
-        return;
-    }
-    let spawned = std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-        ])
-        .arg(&script_path)
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn();
-    if let Err(error) = spawned {
-        log::warn(format!("导出日志失败: {error}"));
+    use std::io::Write;
+    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let Some(destination) = rfd::FileDialog::new()
+            .add_filter("ZIP 诊断包", &["zip"])
+            .set_file_name("english-input-method-diagnostics.zip")
+            .save_file()
+        else {
+            return Ok(());
+        };
+        let mut archive = zip::ZipWriter::new(std::fs::File::create(destination)?);
+        let options = zip::write::SimpleFileOptions::default();
+        archive.start_file("diagnostics.txt", options)?;
+        archive.write_all(
+            format!(
+                "English Input Method {}\n原始输入日志、历史调试日志及密钥文件均未导出。\n",
+                env!("CARGO_PKG_VERSION")
+            )
+            .as_bytes(),
+        )?;
+        if let Some(path) = qingjian_platform::dirs::config_path().filter(|path| path.is_file()) {
+            let sanitized =
+                qingjian_platform::secret_store::sanitized_config(&std::fs::read_to_string(path)?)?;
+            archive.start_file("config.toml", options)?;
+            archive.write_all(sanitized.as_bytes())?;
+        }
+        archive.finish()?;
+        Ok(())
+    })();
+    if let Err(error) = result {
+        log::warn(format!("导出诊断包失败: {error}"));
     }
 }
-
 /// 一行设置：固定宽标签 + 控件。
 pub(super) fn labeled(label: &str, control: impl Into<View>) -> View {
     StackPanel::new()

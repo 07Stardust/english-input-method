@@ -26,6 +26,15 @@ pub use transition::Transition;
 impl Engine {
     /// 给候选补上译文。与 [`Self::query`] 分开调用，平台层可以先画候选再补画译文。
     pub fn annotate(&self, list: &mut CandidateList) -> AnnotationReport {
+        if !self.study_enabled {
+            for candidate in &mut list.items {
+                candidate.translation = None;
+            }
+            return AnnotationReport {
+                total: list.items.len(),
+                ..AnnotationReport::default()
+            };
+        }
         let start = Instant::now();
         let mut hits = 0;
         for candidate in &mut list.items {
@@ -176,6 +185,7 @@ impl Engine {
         self.meter_commit(&candidate.text, source, false);
         // 上屏带译词的中文候选：那一刻用户看着这条译词，记进词汇（英文候选的中文释义不是学习语言，不记）
         if !self.private
+            && self.study_enabled
             && candidate.kind != CandidateKind::English
             && let Some(translation) = &candidate.translation
         {
@@ -193,6 +203,7 @@ impl Engine {
             CandidateKind::Chinese | CandidateKind::Cloud | CandidateKind::Code
         ) && self.gloss_filler.is_enabled()
             && !self.private
+            && self.study_enabled
             && self.translator.language() != Language::Chinese
             && self.translator.translate(&candidate.text).is_none()
         {
@@ -315,7 +326,7 @@ impl Engine {
         if !self.knows_word(&candidate)
             && self.learner.choice_weight(&key, &candidate.text) >= AUTO_WORD_THRESHOLD_SAME_BUFFER
         {
-            tracing::debug!(text = %candidate.text, "整段拼音分次选完，自动造词");
+            tracing::debug!("整段拼音分次选完，自动造词");
             self.learner
                 .learn_word(&candidate.text, &candidate.syllables);
         }
@@ -351,7 +362,7 @@ impl Engine {
         if last.text == text {
             return;
         }
-        tracing::debug!(retracted = %last.text, chosen = %text, "上次选错了，撤销它的学习");
+        tracing::debug!("上次选错了，撤销它的学习");
         self.logger.record(InputLogEntry::Retract {
             of: last.log_id,
             text: last.text.clone(),
@@ -642,7 +653,7 @@ impl Engine {
         if self.knows_word(&candidate) {
             return;
         }
-        tracing::debug!(text = %candidate.text, "自动造词");
+        tracing::debug!("自动造词");
         self.learner
             .learn_word(&candidate.text, &candidate.syllables);
     }

@@ -10,9 +10,9 @@ use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::thread;
 
+use english_ime_tsf::client::{EngineClient, KeyReply, KeyResponse};
 use qingjian_core::Language;
 use qingjian_platform::protocol::{KeyEvent, KeyModifiers, KeyOutcome, SessionId};
-use qingjian_tsf::client::{EngineClient, KeyReply, KeyResponse};
 use qingjian_windows_server::{AssemblySpec, Router, RouterConfig, assembly, ipc};
 
 const SESSION: SessionId = SessionId(1);

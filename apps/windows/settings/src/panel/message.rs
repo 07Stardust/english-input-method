@@ -3,6 +3,41 @@
 /// 设置窗口的消息；「改动」消息带控件新值，`update` 据此落盘。
 #[derive(Clone)]
 pub(crate) enum Message {
+    StudyEnabled(bool),
+    StudyPrivacy(bool),
+    StudyExam(bool),
+    StudyUnknown(bool),
+    StudyDaily(Option<f64>),
+    StudyLevels(String),
+    StudyTag(String),
+    StudyBook(Option<usize>),
+    StudyUseSelected,
+    StudyUseAll,
+    StudyToggleBook(String, bool),
+    StudyName(String),
+    StudyImport(bool),
+    StudyColumn(usize, Option<usize>),
+    StudyHeader(bool),
+    StudyConfirmImport,
+    StudyCancelImport,
+    StudyPage(bool),
+    StudyMapping(usize, String),
+    StudyEquivalent(usize, String),
+    StudyFavorite(usize, bool),
+    StudyDelete(bool),
+    StudyClear(bool),
+    StudyExport,
+    StudyStart(bool),
+    StudyAnswer(String),
+    StudyReveal,
+    StudyGrade(qingjian_learning::study::Grade),
+    StudyReset(usize),
+    StudyMaster(usize),
+    StudyOnlyFavorites(bool),
+    StudyOnlyWrong(bool),
+    StudyRecordShortcut(bool),
+    StudyShortcutRecorded(bool, Option<String>),
+    StudyClearShortcut(bool),
     /// 导航切换分节（`None` 是取消选中，忽略）。
     Navigate(Option<String>),
 
@@ -41,12 +76,13 @@ pub(crate) enum Message {
     LocalModel(bool),
     CloudEnabled(bool),
     CloudApiKey(String),
+    CloudClearKey,
     CloudModel(String),
     CloudBaseUrl(String),
     CloudSlots(Option<f64>),
     CloudSentence(bool),
     TestConnection,
-    CloudTestDone(Result<String, String>),
+    CloudTestDone(u64, Result<String, String>),
 
     // 快捷键页
     PageKeys(Option<usize>),
@@ -109,7 +145,50 @@ pub(crate) enum Message {
     UpdateCheck(bool),
     UpdateChannel(Option<usize>),
     CheckUpdateNow,
-    UpdateChecked(Option<Result<qingjian_update::UpdateState, String>>),
+
     OpenDownload,
     OpenRepository,
+}
+
+impl Message {
+    pub(super) fn is_study(&self) -> bool {
+        matches!(
+            self,
+            Self::StudyEnabled(_)
+                | Self::StudyPrivacy(_)
+                | Self::StudyExam(_)
+                | Self::StudyUnknown(_)
+                | Self::StudyDaily(_)
+                | Self::StudyLevels(_)
+                | Self::StudyTag(_)
+                | Self::StudyBook(_)
+                | Self::StudyUseSelected
+                | Self::StudyUseAll
+                | Self::StudyToggleBook(..)
+                | Self::StudyName(_)
+                | Self::StudyImport(_)
+                | Self::StudyColumn(..)
+                | Self::StudyHeader(_)
+                | Self::StudyConfirmImport
+                | Self::StudyCancelImport
+                | Self::StudyPage(_)
+                | Self::StudyMapping(..)
+                | Self::StudyEquivalent(..)
+                | Self::StudyFavorite(..)
+                | Self::StudyDelete(_)
+                | Self::StudyClear(_)
+                | Self::StudyExport
+                | Self::StudyStart(_)
+                | Self::StudyAnswer(_)
+                | Self::StudyReveal
+                | Self::StudyGrade(_)
+                | Self::StudyReset(_)
+                | Self::StudyMaster(_)
+                | Self::StudyOnlyFavorites(_)
+                | Self::StudyOnlyWrong(_)
+                | Self::StudyRecordShortcut(_)
+                | Self::StudyShortcutRecorded(..)
+                | Self::StudyClearShortcut(_)
+        )
+    }
 }

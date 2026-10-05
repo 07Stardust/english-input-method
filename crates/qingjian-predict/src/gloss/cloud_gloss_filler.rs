@@ -1,4 +1,8 @@
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
 use qingjian_core::{FilledGloss, GlossFiller, Language};
 
@@ -10,7 +14,9 @@ use crate::error::PredictError;
 /// 走网络的释义兜底。构造时起一个后台线程，`request` / `poll` 都只碰通道，不阻塞。
 pub struct CloudGlossFiller {
     /// 往后台线程送词。
-    requests: Sender<(Language, String)>,
+    requests: Sender<(u64, Language, String)>,
+
+    epoch: Arc<AtomicU64>,
 
     /// 从后台线程收释义。
     responses: Receiver<FilledGloss>,
@@ -25,7 +31,8 @@ impl CloudGlossFiller {
         let client = ChatClient::new(config, api_key);
         let (requests, request_rx) = mpsc::channel();
         let (response_tx, responses) = mpsc::channel();
-        let worker = GlossWorker::new(request_rx, response_tx, client);
+        let epoch = Arc::new(AtomicU64::new(0));
+        let worker = GlossWorker::new(request_rx, response_tx, client, epoch.clone());
         std::thread::Builder::new()
             .name("qingjian-gloss".to_owned())
             .spawn(move || {
@@ -37,13 +44,26 @@ impl CloudGlossFiller {
         Ok(Self {
             requests,
             responses,
+            epoch,
         })
     }
 }
 
 impl GlossFiller for CloudGlossFiller {
+    fn cancel(&mut self) {
+        self.epoch.fetch_add(1, Ordering::AcqRel);
+        while self.responses.try_recv().is_ok() {}
+    }
     fn request(&mut self, language: Language, word: &str) {
-        if self.requests.send((language, word.to_owned())).is_err() {
+        if self
+            .requests
+            .send((
+                self.epoch.load(Ordering::Acquire),
+                language,
+                word.to_owned(),
+            ))
+            .is_err()
+        {
             tracing::warn!("释义兜底线程已退出，请求被丢弃");
         }
     }
@@ -51,5 +71,11 @@ impl GlossFiller for CloudGlossFiller {
     fn poll(&mut self) -> Vec<FilledGloss> {
         // Empty 与 Disconnected 都当没有：线程退出时已经记过日志
         self.responses.try_iter().collect()
+    }
+}
+
+impl Drop for CloudGlossFiller {
+    fn drop(&mut self) {
+        self.cancel();
     }
 }

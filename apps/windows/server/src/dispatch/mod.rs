@@ -157,6 +157,10 @@ impl Router {
     /// 所以 DLL 不用自己读配置文件，配置改了也不用重开会话。
     pub(super) fn input_settings(&self) -> InputSettings {
         InputSettings {
+            study_shortcuts: [
+                self.config.study.toggle_learning.parse().ok(),
+                self.config.study.toggle_privacy.parse().ok(),
+            ],
             switch_mode: self.config.switch_mode,
             english_mode: self.config.english_mode,
             shift_letter_compose: self.config.shift_letter_compose,
@@ -166,6 +170,8 @@ impl Router {
     /// 任务栏图标右键菜单打勾用的开关状态，随 `ModeSync` 每一拍下发。
     pub(super) fn indicator_state(&self) -> IndicatorState {
         IndicatorState {
+            learning: self.config.study.enabled,
+            privacy: self.engine.is_private(),
             full_width_punctuation: self.config.full_width,
             english_full_width_punctuation: self.config.english_full_width,
             status_bar: self.config.status_enabled,

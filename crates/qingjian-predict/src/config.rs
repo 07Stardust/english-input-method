@@ -2,7 +2,7 @@ use qingjian_core::PredictionPolicy;
 use serde::{Deserialize, Serialize};
 
 /// 云联想配置。默认**关闭**，开启后光标附近的文本会发往 `base_url`。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PredictConfig {
     /// 是否启用。
@@ -42,6 +42,16 @@ pub struct PredictConfig {
     /// 其余 minimal / low / medium / high / xhigh 照传；留空则不发（给不认这个参数的接口）。
     /// DeepSeek V4 这类默认带思考的模型不关会把 token 预算全花在思考上，正文为空。
     pub reasoning_effort: String,
+}
+
+impl std::fmt::Debug for PredictConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PredictConfig")
+            .field("enabled", &self.enabled)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[redacted]"))
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for PredictConfig {

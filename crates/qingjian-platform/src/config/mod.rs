@@ -56,6 +56,9 @@ pub use update::{UpdateChannel, UpdateConfig};
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    /// 离线词书学习与全局隐私开关。
+    pub study: qingjian_core::StudyOptions,
+
     /// 常规：学习语言、每页候选数、翻页键、外观。
     pub general: GeneralConfig,
 
@@ -253,7 +256,7 @@ wubi = ""
 log_level = "info"
 # 输入日志：每次上屏记一行到数据目录的 input-log.jsonl（敲的键、看到的候选、选了什么），只写在这台电脑上，不上传；
 # 用来离线评测排序和训练个人模型。false 不记；「高级」页可以清空
-input_log = true
+input_log = false
 # 学习输入习惯：按你的选择调整候选顺序、记新词与敲错纠正。false 不再学，已学的仍参与排序；学习数据在数据目录，删掉文件即清空
 learning = true
 # 把系统设置「键盘 → 文本替换」里的条目当自定义短语：输入码（小写字母）敲全后短语出现在该码最靠前的空位；只有 macOS 用
@@ -346,7 +349,7 @@ enabled = false
 
 [update]
 # 检查更新：每天向官网（qingjian.app）读一次版本索引，有新版在菜单与设置的「关于」页提示；请求不带任何标识，不自动下载安装
-check = true
+check = false
 # 渠道：stable 只看正式版；beta 还会提示测试版（alpha / beta / rc）
 channel = "stable"
 "#
@@ -440,10 +443,34 @@ impl Config {
                 });
             }
         };
-        let config: Self = toml::from_str(&source).map_err(|source| ConfigError::Parse {
+        let mut config: Self = toml::from_str(&source).map_err(|_| ConfigError::Parse {
             path: path.to_owned(),
-            source: Box::new(source),
         })?;
+        #[cfg(windows)]
+        if let Some(directory) = path.parent() {
+            if let Some(key) = config
+                .predict
+                .api_key
+                .as_deref()
+                .filter(|key| !key.trim().is_empty())
+            {
+                crate::secret_store::save(directory, key).map_err(|source| ConfigError::Read {
+                    path: path.to_owned(),
+                    source,
+                })?;
+                let sanitized = crate::secret_store::sanitized_config(&source).map_err(|_| {
+                    ConfigError::Edit {
+                        path: path.to_owned(),
+                    }
+                })?;
+                write_file(path, &sanitized)?;
+            }
+            config.predict.api_key =
+                crate::secret_store::load(directory).map_err(|source| ConfigError::Read {
+                    path: path.to_owned(),
+                    source,
+                })?;
+        }
         // 配置或环境变量里的密钥登记给日志掩码；各进程都从这里加载配置，登记在这一处就够
         if let Some(key) = config.predict.resolve_api_key() {
             crate::logs::secrets::register(&key);
@@ -465,6 +492,32 @@ impl Config {
         key: &str,
         value: impl Into<toml_edit::Value>,
     ) -> Result<(), ConfigError> {
+        let value = value.into();
+        #[cfg(windows)]
+        if section == "predict" && key == "api_key" {
+            let directory = path.parent().unwrap_or_else(|| Path::new("."));
+            crate::secret_store::save(directory, value.as_str().unwrap_or_default()).map_err(
+                |source| ConfigError::Read {
+                    path: path.to_owned(),
+                    source,
+                },
+            )?;
+            let source = match std::fs::read_to_string(path) {
+                Ok(source) => source,
+                Err(source) if source.kind() == std::io::ErrorKind::NotFound => TEMPLATE.to_owned(),
+                Err(source) => {
+                    return Err(ConfigError::Read {
+                        path: path.to_owned(),
+                        source,
+                    });
+                }
+            };
+            let sanitized =
+                crate::secret_store::sanitized_config(&source).map_err(|_| ConfigError::Edit {
+                    path: path.to_owned(),
+                })?;
+            return write_file(path, &sanitized);
+        }
         let source = match std::fs::read_to_string(path) {
             Ok(source) => source,
             Err(source) if source.kind() == std::io::ErrorKind::NotFound => TEMPLATE.to_owned(),
@@ -475,9 +528,8 @@ impl Config {
                 });
             }
         };
-        let mut document: DocumentMut = source.parse().map_err(|source| ConfigError::Edit {
+        let mut document: DocumentMut = source.parse().map_err(|_| ConfigError::Edit {
             path: path.to_owned(),
-            source: Box::new(source),
         })?;
         // 分节不存在时先建成标准表，否则 toml_edit 会写成顶层的行内表 `predict = { enabled = true }`
         if !document.get(section).is_some_and(|item| item.is_table()) {
@@ -506,9 +558,8 @@ impl Config {
                 });
             }
         };
-        let mut document: DocumentMut = source.parse().map_err(|source| ConfigError::Edit {
+        let mut document: DocumentMut = source.parse().map_err(|_| ConfigError::Edit {
             path: path.to_owned(),
-            source: Box::new(source),
         })?;
         if !document.get(section).is_some_and(|item| item.is_table()) {
             document[section] = toml_edit::table();
@@ -637,7 +688,7 @@ mod tests {
     fn writes_create_the_data_directory_for_a_fresh_account() {
         let dir = std::env::temp_dir().join("qingjian-config-fresh-account-test");
         let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("Qingjian").join("config.toml");
+        let path = dir.join("EnglishInputMethod").join("config.toml");
         assert!(Config::write_template_if_missing(&path).unwrap());
         assert!(!Config::write_template_if_missing(&path).unwrap());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), TEMPLATE);
@@ -674,6 +725,20 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    #[test]
+    fn malformed_config_errors_do_not_expose_secrets() {
+        let path = std::env::temp_dir().join("english-ime-config-secret-error.toml");
+        let secret = "test-secret-not-a-real-key";
+        std::fs::write(&path, format!("[predict]\napi_key = '{secret}' broken")).unwrap();
+        for error in [
+            Config::load(&path).unwrap_err(),
+            Config::set_bool(&path, "predict", "enabled", false).unwrap_err(),
+        ] {
+            assert!(!format!("{error:?} {error}").contains(secret));
+            assert!(std::error::Error::source(&error).is_none());
+        }
+        std::fs::remove_file(path).unwrap();
+    }
     #[test]
     fn missing_file_is_default() {
         let path = std::env::temp_dir().join("qingjian-config-missing-test.toml");

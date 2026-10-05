@@ -2,6 +2,7 @@
 
 mod language_model;
 mod spec;
+pub(crate) mod study;
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;

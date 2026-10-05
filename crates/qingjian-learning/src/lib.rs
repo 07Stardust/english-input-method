@@ -15,3 +15,4 @@ pub use frequency_learner::FrequencyLearner;
 pub use input_log::InputLog;
 pub use usage_stats::UsageStats;
 pub use vocabulary_book::VocabularyBook;
+pub mod study;

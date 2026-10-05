@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use qingjian_core::Language;
 use qingjian_platform::protocol::{
-    ClientMessage, KeyEvent, PROTOCOL_VERSION, ServerMessage, SessionId,
+    ClientMessage, Hello, KeyEvent, PROTOCOL_VERSION, ServerMessage, SessionId, Welcome,
 };
 use qingjian_windows_server::ipc::pipe::serve_pipe;
 use qingjian_windows_server::ipc::{read_message, write_message};
@@ -50,10 +50,21 @@ fn named_pipe_round_trips_the_open_type_loop() {
         .expect("assemble engine from sample data");
         let mut router = Router::new(engine, RouterConfig::default());
         let (work_tx, work_rx) = std::sync::mpsc::channel();
-        let _ = serve_pipe(&server_name, &mut router, work_tx, work_rx);
+        serve_pipe(&server_name, &mut router, work_tx, work_rx).expect("listen to named pipe");
     });
 
     let mut client = connect(&name);
+    use std::os::windows::io::AsRawHandle;
+    qingjian_platform::windows_security::verify_peer(client.as_raw_handle() as isize, false)
+        .unwrap();
+    write_message(
+        &mut client,
+        &Hello {
+            protocol: PROTOCOL_VERSION,
+        },
+    )
+    .unwrap();
+    let _: Welcome = read_message(&mut client).unwrap().unwrap();
 
     write_message(
         &mut client,
@@ -64,11 +75,16 @@ fn named_pipe_round_trips_the_open_type_loop() {
         },
     )
     .unwrap();
+    let ServerMessage::SessionOpened { session, .. } = read_message(&mut client).unwrap().unwrap()
+    else {
+        panic!("session expected");
+    };
+    assert_ne!(session, SESSION);
     for c in "nihao".chars() {
         write_message(
             &mut client,
             &ClientMessage::Key {
-                session: SESSION,
+                session,
                 event: letter(c),
             },
         )
@@ -77,7 +93,7 @@ fn named_pipe_round_trips_the_open_type_loop() {
 
     // 开会话先回一条 `SessionOpened`，之后五个按键各回一条 `KeyResult`。
     let mut last_frame = None;
-    for _ in 0..6 {
+    for _ in 0..5 {
         let message: ServerMessage = read_message(&mut client)
             .expect("read response")
             .expect("server closed early");
@@ -99,4 +115,79 @@ fn named_pipe_round_trips_the_open_type_loop() {
         texts.contains(&"你好"),
         "候选里应有「你好」，实际：{texts:?}"
     );
+    // 另一连接不能读取、修改隐私状态或关闭当前连接拥有的会话。
+    let mut intruder = connect(&name);
+    write_message(
+        &mut intruder,
+        &Hello {
+            protocol: PROTOCOL_VERSION,
+        },
+    )
+    .unwrap();
+    let _: Welcome = read_message(&mut intruder).unwrap().unwrap();
+    write_message(
+        &mut intruder,
+        &ClientMessage::OpenSession {
+            session: SESSION,
+            app: None,
+            protocol: PROTOCOL_VERSION,
+        },
+    )
+    .unwrap();
+    let ServerMessage::SessionOpened { session: other, .. } =
+        read_message(&mut intruder).unwrap().unwrap()
+    else {
+        panic!("session expected");
+    };
+    assert_ne!(session, other);
+    write_message(&mut intruder, &ClientMessage::Poll { session }).unwrap();
+    let mut reader =
+        qingjian_platform::windows_security::PipeReader::new(&mut intruder, Duration::from_secs(2));
+    assert!(!matches!(
+        read_message::<_, ServerMessage>(&mut reader),
+        Ok(Some(_))
+    ));
+    write_message(&mut client, &ClientMessage::Poll { session }).unwrap();
+    assert!(
+        read_message::<_, ServerMessage>(&mut client)
+            .unwrap()
+            .is_some()
+    );
+    let mut occupied = Vec::new();
+    for _ in 1..qingjian_windows_server::ipc::pipe::MAX_CONNECTIONS {
+        let mut connection = connect(&name);
+        write_message(
+            &mut connection,
+            &Hello {
+                protocol: PROTOCOL_VERSION,
+            },
+        )
+        .unwrap();
+        let _: Welcome = read_message(&mut connection).unwrap().unwrap();
+        occupied.push(connection);
+    }
+    let mut overflow = connect(&name);
+    let _ = write_message(
+        &mut overflow,
+        &Hello {
+            protocol: PROTOCOL_VERSION,
+        },
+    );
+    let mut reader =
+        qingjian_platform::windows_security::PipeReader::new(&mut overflow, Duration::from_secs(2));
+    assert!(!matches!(
+        read_message::<_, Welcome>(&mut reader),
+        Ok(Some(_))
+    ));
+    drop(occupied);
+    thread::sleep(Duration::from_millis(100));
+    let mut recovered = connect(&name);
+    write_message(
+        &mut recovered,
+        &Hello {
+            protocol: PROTOCOL_VERSION,
+        },
+    )
+    .unwrap();
+    let _: Welcome = read_message(&mut recovered).unwrap().unwrap();
 }

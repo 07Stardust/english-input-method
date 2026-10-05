@@ -42,7 +42,7 @@ use super::painter::SharedPainter;
 use super::window_class::WindowClass;
 use crate::dispatch::StatusView;
 
-const CLASS_NAME: PCWSTR = w!("QingjianStatusBar");
+const CLASS_NAME: PCWSTR = w!("EnglishInputMethodStatusBar");
 static CLASS: WindowClass = WindowClass::new();
 
 /// 状态条与屏幕边缘的间隙（逻辑像素）。
@@ -77,9 +77,11 @@ pub(super) struct StatusBar {
 }
 
 /// 三格从左到右的动作。
-const ACTIONS: [StatusAction; 3] = [
+const ACTIONS: [StatusAction; 5] = [
     StatusAction::ToggleMode,
     StatusAction::TogglePunctuation,
+    StatusAction::ToggleLearning,
+    StatusAction::TogglePrivacy,
     StatusAction::OpenSettings,
 ];
 
@@ -184,6 +186,22 @@ impl StatusBar {
         vec![
             StatusCell::text(Self::mode_text(view), true),
             StatusCell::text(if view.full_width { "，。" } else { ",." }, view.full_width),
+            StatusCell::text(
+                if view.learning {
+                    "学习开"
+                } else {
+                    "学习关"
+                },
+                view.learning,
+            ),
+            StatusCell::text(
+                if view.privacy {
+                    "隐私开"
+                } else {
+                    "隐私关"
+                },
+                view.privacy,
+            ),
             StatusCell::Gear,
         ]
     }
@@ -211,6 +229,36 @@ impl StatusBar {
                     theme.gloss_color
                 },
                 action: StatusAction::TogglePunctuation,
+            },
+            CellSpec {
+                text: if view.learning {
+                    "学习开"
+                } else {
+                    "学习关"
+                }
+                .to_owned(),
+                font: theme.text_font,
+                color: if view.learning {
+                    theme.cloud_color
+                } else {
+                    theme.gloss_color
+                },
+                action: StatusAction::ToggleLearning,
+            },
+            CellSpec {
+                text: if view.privacy {
+                    "隐私开"
+                } else {
+                    "隐私关"
+                }
+                .to_owned(),
+                font: theme.text_font,
+                color: if view.privacy {
+                    theme.cloud_color
+                } else {
+                    theme.gloss_color
+                },
+                action: StatusAction::TogglePrivacy,
             },
             CellSpec {
                 text: "\u{2699}".to_owned(),

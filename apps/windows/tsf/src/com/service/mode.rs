@@ -61,6 +61,24 @@ impl TextService_Impl {
             return;
         }
         self.input_settings.set(Some(input));
+        if let Some(thread_mgr) = self.thread_mgr.borrow().clone()
+            && let Ok(keystroke) = thread_mgr.cast::<ITfKeystrokeMgr>()
+        {
+            let previous = self.study_shortcuts.replace([None; 2]);
+            let mut registered = [None; 2];
+            for index in 0..2 {
+                if let Some(combo) = previous[index] {
+                    preserved::unregister_study(&keystroke, index, combo);
+                }
+                if let Some(combo) = input.study_shortcuts[index]
+                    && preserved::register_study(&keystroke, self.client_id.get(), index, combo)
+                        .is_ok()
+                {
+                    registered[index] = Some(combo);
+                }
+            }
+            self.study_shortcuts.set(registered);
+        }
         log(&format!(
             "按键行为设置：中英切换键 {}，内置英文模式 {}，Shift 字母进组句 {}",
             input.switch_mode.describe(),

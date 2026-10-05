@@ -7,9 +7,10 @@
 use std::fs::File;
 use std::io;
 use std::os::windows::io::{AsRawHandle, FromRawHandle};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_PIPE_CONNECTED, HANDLE};
 use windows::Win32::Security::Authorization::{
@@ -18,12 +19,14 @@ use windows::Win32::Security::Authorization::{
 use windows::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
 use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
 use windows::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE,
-    PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_BYTE,
+    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
 };
 use windows::core::{HRESULT, HSTRING};
 
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, read_message, write_message};
+use qingjian_platform::protocol::{ConnectionGuard, Hello, PROTOCOL_VERSION, SessionId, Welcome};
+use qingjian_platform::windows_security;
 
 use super::Work;
 use crate::dispatch::Router;
@@ -32,9 +35,10 @@ pub use qingjian_platform::protocol::DEFAULT_PIPE_NAME;
 
 const BUFFER_SIZE: u32 = 64 * 1024;
 
-/// 管道的 SDDL：放行 Everyone / ALL APPLICATION PACKAGES / ALL RESTRICTED APPLICATION PACKAGES，
-/// 完整性标 Low。任务栏搜索、设置这类 AppContainer 进程在默认 DACL 下连不上。
-const PIPE_SDDL: &str = "D:(A;;GA;;;WD)(A;;GA;;;AC)(A;;GA;;;S-1-15-2-2)S:(ML;;NW;;;LW)";
+/// 管道按用户和登录会话隔离；AppContainer 只获读写，连接后验证内核身份。
+/// 完整性标 Low，允许同用户的 AppContainer 输入连接。
+static ACTIVE_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
+pub const MAX_CONNECTIONS: usize = 127;
 
 /// 在命名管道上服务多个客户端。当前线程独占 [`Router`] 跑工人循环，正常不返回。
 /// `work` 通道由调用方建（UI 线程也往里投状态条事件），这里拿一份发送端给各连接。
@@ -46,12 +50,16 @@ pub fn serve_pipe(
     sender: Sender<Work>,
     receiver: Receiver<Work>,
 ) -> io::Result<()> {
-    let pipe = HSTRING::from(name);
-    let first = match create_instance(&pipe, pipe_security_descriptor(), true) {
+    let pipe = HSTRING::from(if name == DEFAULT_PIPE_NAME {
+        windows_security::pipe_name()?
+    } else {
+        name.to_owned()
+    });
+    let first = match create_instance(&pipe, pipe_security_descriptor()?, true) {
         Ok(first) => first,
         Err(error) if error.raw_os_error() == Some(ERROR_ACCESS_DENIED.0 as i32) => {
             return Err(io::Error::other(
-                "已有一个 qingjian-server 在运行（命名管道被占），本进程退出",
+                "已有一个 english-ime-server 在运行（命名管道被占），本进程退出",
             ));
         }
         Err(error) => return Err(error),
@@ -85,7 +93,10 @@ pub fn serve_pipe(
 
 /// 先在建好的第一个实例上等客户端，之后每建一个实例、等一个客户端连上，就起一条线程服务它。建实例出错才停。
 fn accept_loop(name: &HSTRING, first: File, sender: Sender<Work>) {
-    let descriptor = pipe_security_descriptor();
+    let descriptor = match pipe_security_descriptor() {
+        Ok(value) => value,
+        Err(_) => return,
+    };
     let mut instance = Ok(first);
     loop {
         let stream = match instance.and_then(wait_client) {
@@ -95,28 +106,35 @@ fn accept_loop(name: &HSTRING, first: File, sender: Sender<Work>) {
                 break;
             }
         };
-        let sender = sender.clone();
-        thread::spawn(move || serve_connection(stream, sender));
+        if ACTIVE_CONNECTIONS.fetch_add(1, Ordering::AcqRel) >= MAX_CONNECTIONS {
+            ACTIVE_CONNECTIONS.fetch_sub(1, Ordering::AcqRel);
+            drop(stream);
+        } else {
+            let sender = sender.clone();
+            thread::spawn(move || {
+                serve_connection(stream, sender);
+                ACTIVE_CONNECTIONS.fetch_sub(1, Ordering::AcqRel);
+            });
+        }
         instance = create_instance(name, descriptor, false);
     }
 }
 
-/// 转换失败返回 null，退回默认 DACL。描述符建一次、随进程存活。
-fn pipe_security_descriptor() -> PSECURITY_DESCRIPTOR {
+/// 转换失败拒绝启动，不降级权限。描述符建一次、随进程存活。
+fn pipe_security_descriptor() -> io::Result<PSECURITY_DESCRIPTOR> {
     let mut descriptor = PSECURITY_DESCRIPTOR::default();
     let converted = unsafe {
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
-            &HSTRING::from(PIPE_SDDL),
+            &HSTRING::from(windows_security::pipe_sddl()?),
             SDDL_REVISION_1,
             &mut descriptor,
             None,
         )
     };
     if let Err(error) = converted {
-        tracing::warn!(%error, "构建管道安全描述符失败，退回默认 DACL（UWP 应用可能连不上）");
-        return PSECURITY_DESCRIPTOR::default();
+        return Err(io::Error::other(error));
     }
-    descriptor
+    Ok(descriptor)
 }
 
 /// 建一个实例。句柄交给 `File` 管：对端关闭时 std 把 `ERROR_BROKEN_PIPE` 当 EOF。
@@ -139,8 +157,8 @@ fn create_instance(
         CreateNamedPipeW(
             name,
             open_mode,
-            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-            PIPE_UNLIMITED_INSTANCES,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            (MAX_CONNECTIONS + 1) as u32,
             BUFFER_SIZE,
             BUFFER_SIZE,
             0,
@@ -167,9 +185,41 @@ fn wait_client(stream: File) -> io::Result<File> {
 
 /// 服务一条连接：读消息 → 转给工人线程 → 写回，直到对端在帧边界关闭或出错。
 fn serve_connection(mut stream: File, sender: Sender<Work>) {
+    if windows_security::verify_peer(stream.as_raw_handle() as isize, true).is_err() {
+        return;
+    }
+    let handshake = read_message::<_, Hello>(&mut super::deadline::DeadlineReader::new(
+        &mut stream,
+        Duration::from_secs(5),
+    ));
+    if !matches!(
+        handshake,
+        Ok(Some(Hello {
+            protocol: PROTOCOL_VERSION
+        }))
+    ) {
+        return;
+    }
+    if write_message(
+        &mut stream,
+        &Welcome {
+            protocol: PROTOCOL_VERSION,
+        },
+    )
+    .is_err()
+    {
+        return;
+    }
+    let id = uuid::Uuid::new_v4();
+    let session = SessionId(u64::from_le_bytes(
+        id.as_bytes()[..8].try_into().expect("UUID length"),
+    ));
+    let mut guard = ConnectionGuard::new(session);
     let (reply_sender, reply_receiver) = mpsc::channel::<Option<ServerMessage>>();
     loop {
-        let message = match read_message::<_, ClientMessage>(&mut stream) {
+        let mut message = match read_message::<_, ClientMessage>(
+            &mut super::deadline::DeadlineReader::new(&mut stream, Duration::from_secs(60)),
+        ) {
             Ok(Some(message)) => message,
             Ok(None) => break,
             Err(error) => {
@@ -177,13 +227,17 @@ fn serve_connection(mut stream: File, sender: Sender<Work>) {
                 break;
             }
         };
+        if !guard.authorize(&mut message) {
+            break;
+        }
+        let closing = matches!(message, ClientMessage::CloseSession { .. });
         if sender
             .send(Work::Client(message, reply_sender.clone()))
             .is_err()
         {
             break;
         }
-        match reply_receiver.recv() {
+        match reply_receiver.recv_timeout(Duration::from_secs(2)) {
             Ok(Some(response)) => {
                 if write_message(&mut stream, &response).is_err() {
                     break;
@@ -192,6 +246,15 @@ fn serve_connection(mut stream: File, sender: Sender<Work>) {
             Ok(None) => {}
             Err(_) => break,
         }
+        if closing {
+            break;
+        }
+    }
+    if let Some(session) = guard.session() {
+        let _ = sender.send(Work::Client(
+            ClientMessage::CloseSession { session },
+            reply_sender,
+        ));
     }
     let _ = unsafe { DisconnectNamedPipe(HANDLE(stream.as_raw_handle())) };
     tracing::debug!("客户端断开");

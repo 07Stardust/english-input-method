@@ -1,4 +1,8 @@
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::Duration;
 
 use qingjian_core::{Prediction, PredictionPolicy, PredictionRequest, Predictor};
@@ -14,7 +18,9 @@ pub struct CloudPredictor {
     policy: PredictionPolicy,
 
     /// 往后台线程发请求。
-    requests: Sender<PredictionRequest>,
+    requests: Sender<(u64, PredictionRequest)>,
+
+    epoch: Arc<AtomicU64>,
 
     /// 从后台线程收结果。
     responses: Receiver<Prediction>,
@@ -29,11 +35,13 @@ impl CloudPredictor {
         let client = ChatClient::new(config, api_key);
         let (requests, request_rx) = mpsc::channel();
         let (response_tx, responses) = mpsc::channel();
+        let epoch = Arc::new(AtomicU64::new(0));
         let worker = Worker::new(
             request_rx,
             response_tx,
             client,
             Duration::from_millis(config.debounce_ms),
+            epoch.clone(),
         );
         std::thread::Builder::new()
             .name("qingjian-predict".to_owned())
@@ -53,17 +61,26 @@ impl CloudPredictor {
             policy: config.policy(),
             requests,
             responses,
+            epoch,
         })
     }
 }
 
 impl Predictor for CloudPredictor {
+    fn cancel(&mut self) {
+        self.epoch.fetch_add(1, Ordering::AcqRel);
+        while self.responses.try_recv().is_ok() {}
+    }
     fn policy(&self) -> PredictionPolicy {
         self.policy
     }
 
     fn submit(&mut self, request: PredictionRequest) {
-        if self.requests.send(request).is_err() {
+        if self
+            .requests
+            .send((self.epoch.load(Ordering::Acquire), request))
+            .is_err()
+        {
             tracing::warn!("联想线程已退出，请求被丢弃");
         }
     }
@@ -71,5 +88,11 @@ impl Predictor for CloudPredictor {
     fn poll(&mut self) -> Option<Prediction> {
         // Empty 与 Disconnected 都当没有：线程退出时已经记过日志
         self.responses.try_recv().ok()
+    }
+}
+
+impl Drop for CloudPredictor {
+    fn drop(&mut self) {
+        self.cancel();
     }
 }

@@ -255,7 +255,7 @@ impl Engine {
                 && word.syllables.iter().all(|s| parser::is_syllable(s))
                 && mismatch_count(typed, &word.syllables) <= allowed;
             if !fits {
-                tracing::debug!(text = %word.text, syllables = ?word.syllables, "云端词与拼音不符，丢弃");
+                tracing::debug!("云端词与拼音不符，丢弃");
             }
             fits
         });

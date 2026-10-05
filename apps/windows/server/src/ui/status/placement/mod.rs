@@ -66,6 +66,8 @@ impl Placement {
             .find(|(right, _)| x < *right)
             .map(|(_, action)| *action);
         match action {
+            Some(StatusAction::ToggleLearning) => (self.events)(StatusEvent::ToggleLearning),
+            Some(StatusAction::TogglePrivacy) => (self.events)(StatusEvent::TogglePrivacy),
             Some(StatusAction::ToggleMode) => (self.events)(StatusEvent::ToggleMode),
             Some(StatusAction::TogglePunctuation) => {
                 (self.events)(StatusEvent::TogglePunctuation);

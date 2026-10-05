@@ -18,22 +18,10 @@ pub enum ConfigError {
         source: std::io::Error,
     },
 
-    #[error("invalid config {path}: {source}")]
-    Parse {
-        path: PathBuf,
+    // TOML 错误自带原文片段；不保存源错误，避免非法配置中的密钥进入日志或错误链。
+    #[error("invalid config {path}: check TOML syntax")]
+    Parse { path: PathBuf },
 
-        /// 装着不拆：`toml::de::Error` 一百多字节，直接放进枚举会把 `ConfigError`
-        /// （以及各壳聚合它的错误类型）撑过 clippy 的 128 字节阈值。
-        #[source]
-        source: Box<toml::de::Error>,
-    },
-
-    #[error("cannot edit config {path} in place: {source}")]
-    Edit {
-        path: PathBuf,
-
-        /// 同上。
-        #[source]
-        source: Box<toml_edit::TomlError>,
-    },
+    #[error("cannot edit config {path}: check TOML syntax")]
+    Edit { path: PathBuf },
 }

@@ -6,9 +6,9 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
-# cdylib 是产物 qingjian_tsf.dll（regsvr32 与安装脚本都认这个名字）；rlib 给端到端协议测试 `use qingjian_tsf`。
+# cdylib 是产物 english_ime_tsf.dll（regsvr32 与安装脚本都认这个名字）；rlib 给端到端协议测试 `use english_ime_tsf`。
 [lib]
-name = "qingjian_tsf"
+name = "english_ime_tsf"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

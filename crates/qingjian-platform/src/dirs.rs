@@ -12,7 +12,7 @@ use std::path::PathBuf;
 
 /// 用户数据目录 `%APPDATA%\Qingjian`。
 pub fn user_dir() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|base| PathBuf::from(base).join("Qingjian"))
+    std::env::var_os("LOCALAPPDATA").map(|base| PathBuf::from(base).join("EnglishInputMethod"))
 }
 
 /// 配置文件 `%APPDATA%\Qingjian\config.toml`。
@@ -22,5 +22,6 @@ pub fn config_path() -> Option<PathBuf> {
 
 /// 运行日志目录 `%LOCALAPPDATA%\Qingjian\logs`，不负责创建。
 pub fn log_dir() -> Option<PathBuf> {
-    std::env::var_os("LOCALAPPDATA").map(|base| PathBuf::from(base).join("Qingjian").join("logs"))
+    std::env::var_os("LOCALAPPDATA")
+        .map(|base| PathBuf::from(base).join("EnglishInputMethod").join("logs"))
 }

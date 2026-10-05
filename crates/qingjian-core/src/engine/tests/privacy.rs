@@ -194,3 +194,40 @@ fn reporting_privacy_after_first_frame_does_not_discard_that_frame() {
     engine.set_private(false);
     assert_eq!(engine.composition().text(), "k");
 }
+
+#[test]
+fn learning_toggle_preserves_input_and_is_independent_of_privacy() {
+    let book = Arc::new(Mutex::new(HashMap::new()));
+    let mut engine = engine()
+        .with_translator(Box::new(FixedTranslator))
+        .with_vocabulary_tracker(Box::new(MemoryVocabulary(book.clone())));
+    engine.set_study_enabled(false);
+    engine.set_input("kaifa");
+    let mut query = engine.query().unwrap();
+    engine.annotate(&mut query.candidates);
+    assert!(
+        query
+            .candidates
+            .items
+            .iter()
+            .all(|candidate| candidate.translation.is_none())
+    );
+    engine.note_displayed(query.candidates.items.iter());
+    engine.commit(&query.candidates.items[0]);
+    assert!(book.lock().unwrap().is_empty());
+    assert!(!engine.is_private());
+    engine.set_private(true);
+    engine.set_study_enabled(true);
+    assert!(engine.is_private());
+    engine.set_private(false);
+    engine.set_input("kaifa");
+    let mut query = engine.query().unwrap();
+    engine.annotate(&mut query.candidates);
+    assert!(
+        query
+            .candidates
+            .items
+            .iter()
+            .any(|candidate| candidate.translation.is_some())
+    );
+}

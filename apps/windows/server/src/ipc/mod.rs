@@ -2,6 +2,8 @@
 //! 这层只提供双工字节流上的消息循环（[`serve`]）与具体传输（命名管道 [`pipe`]）。
 
 #[cfg(windows)]
+mod deadline;
+#[cfg(windows)]
 pub mod pipe;
 mod work;
 

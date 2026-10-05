@@ -20,10 +20,13 @@ impl Engine {
     /// 结果的语言与当前学习语言对不上（中途切过语言）就丢。
     pub fn poll_glosses(&mut self) -> usize {
         let filled = self.gloss_filler.poll();
+        if self.private || !self.study_enabled {
+            return 0;
+        }
         let mut learned = 0;
         for gloss in filled {
             if gloss.translation.language == self.translator.language() {
-                tracing::debug!(word = %gloss.word, "释义兜底写入个人释义表");
+                tracing::debug!("释义兜底写入个人释义表");
                 self.translator.learn(&gloss.word, gloss.translation);
                 learned += 1;
             }
@@ -40,6 +43,9 @@ impl Engine {
     /// 每次重画都换掉上一页，逐键刷新时一闪而过的候选不算；窗口收起时传空。
     pub fn note_displayed<'a>(&mut self, candidates: impl IntoIterator<Item = &'a Candidate>) {
         self.displayed.clear();
+        if self.private || !self.study_enabled {
+            return;
+        }
         for candidate in candidates {
             if candidate.kind == CandidateKind::English {
                 continue;
@@ -58,7 +64,7 @@ impl Engine {
 
     /// 上屏了：当前页上的译词都算看到过一轮。
     pub(super) fn record_exposures(&mut self) {
-        if self.private {
+        if self.private || !self.study_enabled {
             // 私密输入中的候选页不能污染词汇记录；同时丢掉暂存页，避免之后恢复普通输入时补记。
             self.displayed.clear();
             return;
@@ -79,6 +85,9 @@ impl Engine {
     /// 往输入统计记一次上屏：汉字与英文词按文字数，中文词数按来源定（选一个词算一个，整句按语言模型切出来的词数，
     /// 切不了就按字数）。`english_word` 是原样上屏的字母串算不算一个英文词（拼音回车不算）。
     pub(super) fn meter_commit(&mut self, text: &str, source: InputSource, english_word: bool) {
+        if self.private {
+            return;
+        }
         let mut usage = Usage::of_text(text);
         usage.words = match source {
             InputSource::Word | InputSource::Cloud => 1,
@@ -178,7 +187,7 @@ impl Engine {
                 self.chain.reset();
             }
             self.recent_commits.retain(|c| c.text != candidate.text);
-            tracing::debug!(text = %candidate.text, ?forgotten, "删除候选");
+            tracing::debug!(?forgotten, "删除候选");
         }
         forgotten
     }

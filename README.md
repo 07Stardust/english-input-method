@@ -1,3 +1,14 @@
+# English Input Method
+
+面向 Windows 的本地英语学习输入法，基于青简 Qingjian 开发，保留上游历史、GPL-3.0-or-later 许可证与署名。支持自定义词书、考试/日常提示、学习及隐私开关、词卡与拼写复习。
+
+- [英语学习使用说明](docs/user/english-study.md)
+- [实现与验证报告](docs/notes/english-implementation-verification.md)
+- [词书模板与演示书](assets/study/)
+
+当前为开发测试版，尚未完成安装包及实际输入场景验收。以下保留上游项目介绍、数据来源与贡献说明；其中下载及发布链接指向上游产品。
+
+---
 <p align="center">
   <img src="assets/icon/qingjian-mark.svg" alt="青简竹简图标" height="108">
 </p>

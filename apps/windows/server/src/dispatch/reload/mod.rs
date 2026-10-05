@@ -19,8 +19,6 @@ pub use self::state::DataDirs;
 /// 看配置文件 mtime 的最短间隔；工人循环空闲时按它等，重排的短节拍来得更勤时按这个节流。
 pub(super) const CONFIG_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
-/// 检查更新的结果文件名，在用户数据目录下（见 `qingjian-update::UpdateState`）。
-const UPDATE_STATE_FILE: &str = "update.json";
 use super::{Router, RouterConfig};
 use crate::assembly;
 
@@ -118,12 +116,13 @@ impl Router {
         root: PathBuf,
         dirs: DataDirs,
     ) {
+        assembly::study::apply(&mut self.engine, config, &root, dirs.user_root.as_deref());
+        self.engine.set_private(config.study.privacy);
         let last_mtime = mtime(&config_path);
         let code_files = dirs.code_snapshot();
         let dictionary_files = dirs.dict_snapshot();
-        let updates = dirs.user_root.as_deref().map(|dir| {
-            qingjian_update::Checker::new(dir.join(UPDATE_STATE_FILE), env!("CARGO_PKG_VERSION"))
-        });
+        // 私有产品尚未建立更新源，禁止使用上游发行通道。
+        let updates = None;
         self.reload = Some(ConfigReload {
             config_path,
             last_check: Instant::now(),
@@ -193,6 +192,13 @@ impl Router {
 
     /// 应用新配置。学习语言变了换释义表（词汇等级表启动时已全装，不用换）。
     fn apply_config(&mut self, config: &Config) {
+        self.engine.set_study_enabled(config.study.enabled);
+        let input_private = self
+            .focused
+            .and_then(|session| self.sessions.get(&session))
+            .is_some_and(|info| info.private);
+        self.engine
+            .set_private(config.study.privacy || input_private);
         self.engine.set_fuzzy(config.fuzzy);
         // 拼音侧与形码侧一起装配（双拼 / 注音 / 混输都在里面）
         self.reload_code_table(config.general.scheme(), config.general.wubi());
@@ -237,6 +243,23 @@ impl Router {
             )
         {
             reload.applied_language = language;
+        }
+        assembly::study::apply(
+            &mut self.engine,
+            config,
+            &reload.root,
+            reload.dirs.user_root.as_deref(),
+        );
+        if let Some(user) = reload.dirs.user_root.as_ref() {
+            if config.general.input_log {
+                self.engine
+                    .set_input_logger(Box::new(qingjian_learning::InputLog::open(
+                        user.join("input-log.jsonl"),
+                    )));
+            } else {
+                self.engine
+                    .set_input_logger(Box::new(qingjian_core::NoInputLogger));
+            }
         }
         if config.dictionaries != reload.applied_dictionaries {
             reload.applied_dictionaries = config.dictionaries.clone();

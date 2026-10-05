@@ -1,5 +1,9 @@
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::{Duration, Instant};
 
 use qingjian_core::{FilledGloss, Language};
@@ -20,7 +24,9 @@ const MAX_TOKENS: u32 = 600;
 /// 后台线程：攒词、发请求、回释义。
 pub struct GlossWorker {
     /// 请求入口。主线程 drop 掉发送端后线程自然退出。
-    requests: Receiver<(Language, String)>,
+    requests: Receiver<(u64, Language, String)>,
+
+    epoch: Arc<AtomicU64>,
 
     /// 结果出口。
     responses: Sender<FilledGloss>,
@@ -29,20 +35,24 @@ pub struct GlossWorker {
     client: ChatClient,
 
     /// 本进程内问过的 (语言, 词)，不再问。
-    asked: HashSet<(Language, String)>,
+    asked: HashSet<(u64, Language, String)>,
+    pending: Option<(u64, Language, String)>,
 }
 
 impl GlossWorker {
     pub fn new(
-        requests: Receiver<(Language, String)>,
+        requests: Receiver<(u64, Language, String)>,
         responses: Sender<FilledGloss>,
         client: ChatClient,
+        epoch: Arc<AtomicU64>,
     ) -> Self {
         Self {
             requests,
             responses,
             client,
+            epoch,
             asked: HashSet::new(),
+            pending: None,
         }
     }
 
@@ -51,7 +61,11 @@ impl GlossWorker {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
-        while let Ok(first) = self.requests.recv() {
+        while let Some(first) = self.pending.take().or_else(|| self.requests.recv().ok()) {
+            let epoch = first.0;
+            if epoch != self.epoch.load(Ordering::Acquire) {
+                continue;
+            }
             let Some(batch) = self.collect(first) else {
                 return Ok(());
             };
@@ -68,20 +82,26 @@ impl GlossWorker {
                     .filter(|(l, _)| *l == language)
                     .map(|(_, w)| w.clone())
                     .collect();
-                self.ask(&runtime, language, words);
+                self.ask(&runtime, epoch, language, words);
             }
         }
         Ok(())
     }
 
     /// 从第一个词起攒一批：等到 [`BATCH_WAIT`] 或攒够 [`BATCH_SIZE`]；问过的跳过。发送端关闭返回 `None`。
-    fn collect(&mut self, first: (Language, String)) -> Option<Vec<(Language, String)>> {
+    fn collect(&mut self, first: (u64, Language, String)) -> Option<Vec<(Language, String)>> {
+        let epoch = first.0;
+        self.asked.retain(|item| item.0 == epoch);
         let deadline = Instant::now() + BATCH_WAIT;
         let mut batch = Vec::with_capacity(BATCH_SIZE);
         self.take(&mut batch, first);
         while batch.len() < BATCH_SIZE {
             let remaining = deadline.saturating_duration_since(Instant::now());
             match self.requests.recv_timeout(remaining) {
+                Ok(item) if item.0 != epoch => {
+                    self.pending = Some(item);
+                    break;
+                }
                 Ok(item) => self.take(&mut batch, item),
                 Err(RecvTimeoutError::Timeout) => break,
                 Err(RecvTimeoutError::Disconnected) => return None,
@@ -90,21 +110,31 @@ impl GlossWorker {
         Some(batch)
     }
 
-    fn take(&mut self, batch: &mut Vec<(Language, String)>, item: (Language, String)) {
-        if self.asked.insert(item.clone()) {
-            batch.push(item);
+    fn take(&mut self, batch: &mut Vec<(Language, String)>, item: (u64, Language, String)) {
+        if item.0 == self.epoch.load(Ordering::Acquire) && self.asked.insert(item.clone()) {
+            batch.push((item.1, item.2));
         }
     }
 
-    fn ask(&self, runtime: &tokio::runtime::Runtime, language: Language, words: Vec<String>) {
+    fn ask(
+        &self,
+        runtime: &tokio::runtime::Runtime,
+        epoch: u64,
+        language: Language,
+        words: Vec<String>,
+    ) {
         if words.is_empty() {
             return;
         }
         let start = Instant::now();
         let system = prompt::system_prompt(language);
         let user = prompt::user_prompt(&words);
-        match runtime.block_on(self.client.chat(system, &user, MAX_TOKENS)) {
-            Ok(content) => {
+        match runtime.block_on(crate::cancellation::run(
+            &self.epoch,
+            epoch,
+            self.client.chat(system, &user, MAX_TOKENS),
+        )) {
+            Some(Ok(content)) => {
                 let filled = prompt::parse_reply(&content, language, &words);
                 tracing::info!(
                     language = language.code(),
@@ -120,9 +150,14 @@ impl GlossWorker {
                     }
                 }
             }
-            Err(error) => {
-                tracing::warn!(language = language.code(), asked = words.len(), %error, "释义兜底失败");
+            Some(Err(_)) => {
+                tracing::warn!(
+                    language = language.code(),
+                    asked = words.len(),
+                    "释义兜底失败"
+                );
             }
+            None => {}
         }
     }
 }

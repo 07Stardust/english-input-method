@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 /// 任务栏「中 / 英」图标右键菜单里要交给 Server 办的项（中 / 英切换在 DLL 侧自己做）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IndicatorCommand {
+    ToggleLearning,
+
+    TogglePrivacy,
+
     /// 翻转当前模式的全角标点，与悬浮条上点「，。」一样。
     TogglePunctuation,
 
@@ -21,6 +25,10 @@ pub enum IndicatorCommand {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct IndicatorState {
+    pub learning: bool,
+
+    pub privacy: bool,
+
     /// 中文模式下标点转全角（`[general] full_width_punctuation`）。
     pub full_width_punctuation: bool,
 

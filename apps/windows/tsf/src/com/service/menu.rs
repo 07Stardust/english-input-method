@@ -23,6 +23,8 @@ impl TextService_Impl {
         let english = self.mode_state.english();
         let indicator = self.indicator_state.get();
         let state = MenuState {
+            learning: indicator.learning,
+            privacy: indicator.privacy,
             english,
             english_enabled: self.mode_state.enabled(),
             full_width: if english {
@@ -42,7 +44,7 @@ impl TextService_Impl {
         }
     }
 
-    fn send_indicator(&self, command: IndicatorCommand) {
+    pub(super) fn send_indicator(&self, command: IndicatorCommand) {
         if matches!(
             command,
             IndicatorCommand::OpenSettings | IndicatorCommand::OpenDownload

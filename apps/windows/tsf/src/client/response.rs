@@ -6,7 +6,7 @@ pub struct ModeSyncReply {
     pub english: Option<bool>,
 
     /// 当前的按键行为设置（切换键、内置英文模式）。每一拍都带，配置改了靠它生效——
-    /// DLL 不读配置文件，`%APPDATA%\Qingjian` 对 AppContainer 里的商店应用本来也读不到。
+    /// DLL 不读配置文件，`%APPDATA%\EnglishInputMethod` 对 AppContainer 里的商店应用本来也读不到。
     pub input: InputSettings,
 
     /// 右键菜单打勾用的开关状态，同样每一拍都带。

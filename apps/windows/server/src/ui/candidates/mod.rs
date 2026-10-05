@@ -30,7 +30,7 @@ use super::monitor;
 use super::painter::SharedPainter;
 use super::window_class::WindowClass;
 
-const CLASS_NAME: PCWSTR = w!("QingjianCandidateWindow");
+const CLASS_NAME: PCWSTR = w!("EnglishInputMethodCandidateWindow");
 static CLASS: WindowClass = WindowClass::new();
 
 /// 光标行与候选窗之间的间隙（逻辑像素）。

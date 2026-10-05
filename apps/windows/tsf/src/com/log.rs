@@ -1,4 +1,4 @@
-//! DLL 自己的文件日志：按天一个文件 `%LOCALAPPDATA%\Qingjian\logs\tsf.<YYYY-MM-DD>.log`，与 Server / 设置程序同目录，
+//! DLL 自己的文件日志：按天一个文件 `%LOCALAPPDATA%\EnglishInputMethod\logs\tsf.<YYYY-MM-DD>.log`，与 Server / 设置程序同目录，
 //! 只留最近 [`KEEP_DAYS`] 天（命名与清理规则在 `qingjian_platform::logs::daily`）。
 //! 不走 tracing 全局订阅器（宿主进程可能已装了自己的）；任何失败都吞掉，日志不能拖垮宿主。
 //! 每次都开文件追加一行：DLL 被加载进每个应用进程，多进程同时追加同一天的文件，这样最省事也最稳。

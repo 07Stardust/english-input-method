@@ -3,6 +3,22 @@
 CLAUDE.md 只保留目录地图与规则，每个 crate / app / tool 的实现细节收在这里：入口类型、数据文件、常数、生成命令。
 改了实现要同步改这里；与代码冲突时以代码为准。
 
+## English Input Method Windows 学习版
+
+派生产品保留 Qingjian 历史和 GPL 署名，仓库为 07Stardust/english-input-method。Windows 数据在 %LOCALAPPDATA%/EnglishInputMethod，程序名为 english-ime-server.exe、english-ime-settings.exe、english_ime_tsf.dll。安装 CLSID / Profile GUID / Inno AppId 与上游分离，首版禁用自动更新及上游发布流程。
+
+- qingjian-core::StudyOptions 控制学习、隐私、考试筛选、每日新增与录制快捷键；学习关闭保留中文输入。隐私叠加密码框保护，清理上下文并取消在途云任务。
+- qingjian-learning::study 独立管理词书、导入预览、关联索引、收藏和复习记录。CSV/TSV 支持 UTF-8、UTF-16 BOM、GBK；XLSX 不运行公式、宏、外部链接。限制文件 20 MiB、解压 100 MiB、50,000 行、32 列，原子保存失败不改原词书。
+- StudyTranslator 在装配时建内存索引，输入路径不解析导入文件；考试模式不回退词书外释义。未知等级不推断六级，缺少通用释义表仍允许人工中文关联。
+- 复习间隔为 1、3、7、14、30 天；答错重置第一阶段，同日重复正确不推进阶段。每日新增默认 20。词汇曝光与练习记录分开保存和展示。
+- Windows 协议版本 8：按 SID/登录会话命名，保护 DACL、拒绝远程客户端；客户端核验管道所有者/会话，服务端核验客户端令牌；握手分配随机会话并绑定连接，关闭和断连撤销。帧上限 64 KiB，最多 127 个活跃连接，另留监听实例。首帧 5 秒，帧体 2 秒，空闲 60 秒。
+- windows_security 保留低完整性/AppContainer 的读写及 READ_CONTROL，排除创建管道实例权限；实际 AppContainer 输入兼容性仍需安装后的专项验证。
+- secret_store 使用当前用户 DPAPI 存储云密钥，保护成功才移除原配置明文。TOML 错误不保留含原文的解析错误链；日志导出只含脱敏配置与诊断说明。
+- 云任务用取消代数抛弃迟到结果；设置页云连接测试也监测外部隐私设置变化。默认输入原文日志、云服务关闭。
+- Windows 设置页新增词书管理、学习页、手工关联、词卡/拼写复习及删除确认；状态条/菜单/设置提供两个独立开关，快捷键无默认组合。
+- release.yml 仅手动生成测试安装包，无上游发布凭据；tools/release/data-fetch.ps1 校验固定上游数据 SHA256 和归档路径。
+
+模板及五词演示书在 assets/study；演示书不代表六级全集或覆盖率。用户说明见 [英语学习与词书](../user/english-study.md)。证据见 [实现验证报告](english-implementation-verification.md)。
 ## crates/qingjian-dictionary
 
 词库（TSV 解析或 `.qj` mmap），键按字节序排好，查询逐音节位置二分收窄（简拼位置按音节块跳扫），

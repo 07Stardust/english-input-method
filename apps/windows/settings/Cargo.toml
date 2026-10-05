@@ -7,13 +7,14 @@ license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "qingjian-settings"
+name = "english-ime-settings"
 path = "src/main.rs"
 
 [dependencies]
 qingjian-platform.workspace = true
 qingjian-predict.workspace = true
 toml_edit.workspace = true
+zip.workspace = true
 
 # UI 本体只在 Windows 编
 [target."cfg(windows)".dependencies]
@@ -23,6 +24,7 @@ windows = { version = "0.62.2", features = [
     "Win32_Security",
     "Win32_System_Threading",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
 ] }
 # 只用它的 system_fonts（DirectWrite 列字族）
 qingjian-render.workspace = true

@@ -11,7 +11,7 @@ use windows::core::w;
 ///
 /// 互斥体句柄故意不关，进程退出时由系统回收。
 pub(crate) fn acquire() -> bool {
-    let created = unsafe { CreateMutexW(None, false, w!("Local\\QingjianSettings")) };
+    let created = unsafe { CreateMutexW(None, false, w!("Local\\EnglishInputMethodSettings")) };
     if created.is_err() || unsafe { GetLastError() } != ERROR_ALREADY_EXISTS {
         return true;
     }

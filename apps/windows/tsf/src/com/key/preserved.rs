@@ -20,11 +20,35 @@ pub(crate) const GUID_TRANSLATE: GUID = GUID::from_u128(0x5c0a7b12_3d4e_4f60_8a9
 
 /// Ctrl + Alt + Space 中英切换键的保留键标识。
 pub(crate) const GUID_SWITCH_MODE: GUID = GUID::from_u128(0x2f6b8c51_9a34_4e7d_b2c8_5d1e0f3a7b64);
+pub(crate) const GUID_STUDY: [GUID; 2] = [
+    GUID::from_u128(0x91ba70c1_3e0c_492b_b22c_378332fe1201),
+    GUID::from_u128(0x91ba70c1_3e0c_492b_b22c_378332fe1202),
+];
+
+pub(crate) fn register_study(
+    keystroke: &ITfKeystrokeMgr,
+    tid: u32,
+    index: usize,
+    combo: KeyCombo,
+) -> Result<()> {
+    let description: Vec<u16> = if index == 0 {
+        "学习开关"
+    } else {
+        "隐私开关"
+    }
+    .encode_utf16()
+    .collect();
+    unsafe { keystroke.PreserveKey(tid, &GUID_STUDY[index], &preserved_key(combo), &description) }
+}
+
+pub(crate) fn unregister_study(keystroke: &ITfKeystrokeMgr, index: usize, combo: KeyCombo) {
+    let _ = unsafe { keystroke.UnpreserveKey(&GUID_STUDY[index], &preserved_key(combo)) };
+}
 
 /// msctf.h 的 `TF_MOD_LWIN`（windows crate 没导出）。
 const TF_MOD_LWIN: u32 = 0x08;
 
-/// 读 `%APPDATA%\Qingjian\config.toml` 里的组合；读不到 / 解析失败用缺省。
+/// 读 `%APPDATA%\EnglishInputMethod\config.toml` 里的组合；读不到 / 解析失败用缺省。
 pub(crate) fn load_combo() -> KeyCombo {
     let Some(path) = qingjian_platform::dirs::config_path() else {
         return KeyCombo::TRANSLATE_DEFAULT;

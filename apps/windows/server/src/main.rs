@@ -11,7 +11,7 @@ use qingjian_windows_server::{
     AssemblySpec, LanguageModelFiles, Router, RouterConfig, ServerError, assembly, dispatch,
 };
 
-/// 用户数据目录 `%APPDATA%\Qingjian`。非 Windows 拿不到。
+/// 用户数据目录 `%APPDATA%\EnglishInputMethod`。非 Windows 拿不到。
 fn user_dir() -> Option<PathBuf> {
     qingjian_platform::dirs::user_dir()
 }
@@ -20,7 +20,7 @@ fn config_path() -> Option<PathBuf> {
     qingjian_platform::dirs::config_path()
 }
 
-/// 首次启动把带说明的配置模板写到 `%APPDATA%\Qingjian\config.toml`（与 macOS 一致）；
+/// 首次启动把带说明的配置模板写到 `%APPDATA%\EnglishInputMethod\config.toml`（与 macOS 一致）；
 /// 这时日志还没装好，结果交给 `main` 记。已有文件返回 `Ok(false)`。
 fn write_config_template() -> Option<Result<bool, ConfigError>> {
     Some(Config::write_template_if_missing(&config_path()?))
@@ -37,7 +37,7 @@ fn load_config() -> Config {
     }
 }
 
-/// 读密钥：工作目录 `.env`，再叠加 `%APPDATA%\Qingjian\.env`；不覆盖已有环境变量。
+/// 读密钥：工作目录 `.env`，再叠加 `%APPDATA%\EnglishInputMethod\.env`；不覆盖已有环境变量。
 fn load_env() {
     let _ = dotenvy::dotenv();
     if let Some(env_file) = user_dir().map(|dir| dir.join(".env")) {
@@ -77,7 +77,7 @@ fn assemble_with_fallback(mut spec: AssemblySpec, root: &Path) -> Result<Engine,
     })
 }
 
-/// 三个进程共用的日志目录 `%LOCALAPPDATA%\Qingjian\logs`（见 `qingjian_platform::dirs`），这里顺手建出来。
+/// 三个进程共用的日志目录 `%LOCALAPPDATA%\EnglishInputMethod\logs`（见 `qingjian_platform::dirs`），这里顺手建出来。
 fn log_dir() -> Option<PathBuf> {
     let dir = qingjian_platform::dirs::log_dir()?;
     std::fs::create_dir_all(&dir).ok()?;
@@ -227,7 +227,7 @@ fn main() {
     serve(router);
 }
 
-/// 日志目录 `%LOCALAPPDATA%\Qingjian\logs` 给 AppContainer 应用（任务栏搜索 / 设置）写权限：
+/// 日志目录 `%LOCALAPPDATA%\EnglishInputMethod\logs` 给 AppContainer 应用（任务栏搜索 / 设置）写权限：
 /// 那些进程里的 DLL 默认写不了用户目录，出了问题连日志都没有。失败只记警告。
 #[cfg(windows)]
 fn grant_appcontainer_log_access() {

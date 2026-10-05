@@ -18,7 +18,7 @@ fn main() {
                 "cargo:warning=QINGJIAN_UIACCESS=0：Server 不带 uiAccess，候选窗在 UWP 宿主里可能被盖住"
             );
         }
-        let manifest = new_manifest("Qingjian.Server")
+        let manifest = new_manifest("EnglishInputMethod.Server")
             .requested_execution_level(ExecutionLevel::AsInvoker)
             .ui_access(ui_access);
         embed_manifest(manifest).expect("嵌入 Server manifest 失败");

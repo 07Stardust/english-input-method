@@ -144,7 +144,7 @@ impl Default for GeneralConfig {
             shuangpin: None,
             zhuyin: None,
             log_level: LogLevel::default(),
-            input_log: true,
+            input_log: false,
             learning: true,
             system_text_replacements: true,
         }

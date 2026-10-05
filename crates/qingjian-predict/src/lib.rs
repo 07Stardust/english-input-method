@@ -20,3 +20,4 @@ pub use config::PredictConfig;
 pub use connection::{ConnectionReport, ConnectionTest};
 pub use error::PredictError;
 pub use gloss::CloudGlossFiller;
+mod cancellation;
