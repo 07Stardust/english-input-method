@@ -1,0 +1,19 @@
+{
+  "official_source": "https://cet.neea.edu.cn/res/Home/1704/55b02330ac17274664f06d9d3db8249d.pdf",
+  "official_pdf_sha256": "9166d3c03b7bc43abd9d9df91bd2ef8085b4419286f1e5ca100dea68f3cfd1f1",
+  "checked_at": "2026-10-05",
+  "official_pdf_pages": [
+    21,
+    149
+  ],
+  "official_star_heads": 1263,
+  "entries": 1282,
+  "meaning_count": 1245,
+  "input_mapping_count": 972,
+  "cefr_count": 597,
+  "csv_sha256": "d21e7a696599caff881aafbf193c136827ee6325fb66cde152db00c24b64952f",
+  "scope": "Six-level starred headwords only; expanded spelling variants, not the entire four/six-level wordlist.",
+  "meaning_source": "Qingjian GPL-3.0-or-later offline LLM glossary; not official definitions.",
+  "level_source": "Bundled CEFR-J/Octanove tags; separate from official CET level.",
+  "official_licence": "No explicit open data licence identified. Official factual headword and star metadata only; no original PDF, explanatory paragraphs or exam samples redistributed."
+}

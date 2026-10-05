@@ -69,6 +69,7 @@ FinishedLabel=安装完成。请注销后重新登录（或重启电脑），青
 [Files]
 Source: "{#Repo}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Repo}\assets\study\*"; DestDir: "{app}\assets\study"; Flags: ignoreversion
+Source: "{#Repo}\assets\study\cet\*"; DestDir: "{app}\assets\study\cet"; Flags: ignoreversion
 Source: "{#Repo}\assets\glossary\glossary-en.tsv"; DestDir: "{app}\assets\glossary"; Flags: ignoreversion
 ; —— 二进制 ——
 ; DLL 按版本起名并排装；卸载时若仍被占用，登记成重启后删。
