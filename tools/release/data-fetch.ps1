@@ -24,8 +24,11 @@ $entries = & tar.exe -tzf $archive
 if ($LASTEXITCODE -ne 0) { throw '读取归档目录失败' }
 foreach ($entry in $entries) {
     $relative = $entry -replace '^\./', ''
+    # 已锁定哈希的归档含顶层目录条目；只允许这个精确目录名。
+    if ($relative -eq 'data/') { continue }
     if ($relative -notmatch '^data/(generated|models)/' -or $relative -match '(^|/)\.\.(/|$)|\\|:' ) { throw "拒绝异常归档路径：$entry" }
 }
 & tar.exe -xzf $archive -C $repository
 if ($LASTEXITCODE -ne 0) { throw '解压产品数据失败' }
 Write-Host "已验证上游数据 $tag / $expected"
+
