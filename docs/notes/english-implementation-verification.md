@@ -36,11 +36,11 @@
 
 ## 未完成验收与具体限制
 
-1. 本机已准备 MSVC Rust 目标，但没有可用 Visual Studio MSVC 链接器。WinUI 自包含运行时需要 MSVC 构建；因此尚未生成或验证 Windows 安装包。已准备手动 Windows CI 构建流程，推送后运行并取回产物。
+1. 本机已准备 MSVC Rust 目标，但没有可用 Visual Studio MSVC 链接器。WinUI 自包含运行时需要 MSVC 构建；已在 GitHub Windows MSVC runner 成功构建测试安装包，运行 37305475285；当前系统仍未安装。安装包构建成功不等同于实际输入场景验收。
 2. 未安装或注册 IME；普通文本框、浏览器、VS Code、密码框、系统搜索、焦点切换与实际候选窗口未进行应用验收。未完成 AppContainer 或其他 Windows 用户/登录会话的运行测试。
 3. 状态条/菜单隐私开关直接作用于引擎；设置页通过配置热加载作用于输入进程（轮询间隔 1 秒），云连接测试轮询间隔 100 ms。跨进程立即取消、短暂开关切换仍需加强与专项验收，不把轮询称为瞬时响应。
 4. 管道有读取/连接限制，但同步写入尚未加入专门写超时；连接耗尽回归不能代表完整拒绝服务防护。
-5. 词书/练习 JSON 导出入口与词汇曝光统计分开，尚未提供统一恢复入口；演示书只有 5 个词，不代表六级全集或覆盖率。
+5. 词书/练习 JSON 导出入口与词汇曝光统计分开，尚未提供统一恢复入口；演示书只有 5 个词；另有官方来源星标与合并提取词书，仍不代表考试覆盖率。
 6. 未执行上游发布、安装、系统注册或证书信任操作。测试安装包默认关闭 uiAccess，商店应用/系统搜索的候选窗口置顶需另行验证。
 
 ## 交付资料与复现
@@ -58,3 +58,9 @@
 已核对 NEEA 官方 2016 大纲的 1,263 个六级星标词目，展开拼写并合并同形词为 1,282 条。新增基础与六级合并提取版 5,404 条，提取计数与官方注明的 5,418 词目尚有差异，详见 assets/study/cet/README.md；不宣称全集覆盖率。中文释义及输入关联来自本地青简离线数据，非官方释义。
 
 两份词书通过真实 CSV 导入器及考试模式筛选回归（新增 1 项测试）。已在 LOCALAPPDATA/EnglishInputMethod/study.json 导入两份词书，当前选中合并提取版，考试标签 CET6；隐私设置保持不变。未注册输入法。
+
+私人仓库推送记录：基线 c08ae57；安全及学习实现 64215b1；构建配置 24cb4ad；官方词书 c694617；归档目录校验修复 1bb1efa。Windows 验证运行 37305468847，测试安装包运行 37305475285；两项运行现均成功完成；Windows MSVC 格式、严格 Clippy、488 项相关测试通过；安装包待本地下载核验。恢复 Actions 时只设置 enabled=true，保留原有允许范围；未使用被自动审核拒绝的 allowed_actions=all。
+
+首次使用步骤已补充到 docs/user/english-study.md；本地完整 Windows CI 与安装包构建日志位于 outputs/windows-ci.log 和 outputs/windows-installer-build.log。
+
+安装包已下载至 D:/codex/english-tick/outputs/windows-test-installer/english-input-method-0.1.5-dev-1bb1efa-windows-x86_64-setup.exe；SHA256 C7E49E4CC8981FDB5CBA5B7B6C4C7573FCCCC70FBCF206267F6E89B0FBFFCCB8 与 CI 清单一致，PE 文件头检查通过。未运行安装器，未注册输入法。

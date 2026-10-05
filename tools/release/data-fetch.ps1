@@ -31,4 +31,3 @@ foreach ($entry in $entries) {
 & tar.exe -xzf $archive -C $repository
 if ($LASTEXITCODE -ne 0) { throw '解压产品数据失败' }
 Write-Host "已验证上游数据 $tag / $expected"
-
