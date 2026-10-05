@@ -1,18 +1,18 @@
-﻿; 青简 Windows 输入法安装脚本（Inno Setup）。
+; 青简 Windows 输入法安装脚本（Inno Setup）。
 ;
-; 装到 Program Files\Qingjian（64 位），把 TSF DLL（64 位与 32 位各一份，见 README「安装布局」）、Server、设置程序与随包数据装在一起，
+; 装到 Program Files\EnglishInputMethod（64 位），把 TSF DLL（64 位与 32 位各一份，见 README「安装布局」）、Server、设置程序与随包数据装在一起，
 ; 然后：① 给安装目录加 ALL APPLICATION PACKAGES 读+执行权限（UWP/AppContainer 应用——任务栏搜索、
-; 设置——才能加载 DLL）；② regsvr32 注册文本服务，64 位与 32 位各注册一次（图标落到 %ProgramData%\Qingjian）；
+; 设置——才能加载 DLL）；② regsvr32 注册文本服务，64 位与 32 位各注册一次（图标落到 %ProgramData%\EnglishInputMethod）；
 ; ③ 在「启动」文件夹放 Server 快捷方式（登录时由 Explorer 走 ShellExecute 拉起，uiAccess 才生效——
 ;    计划任务直接拉起拿不到 uiAccess）；④ 装完点 Finish 立即以原用户 ShellExecute 起一次 Server，免得先注销。
-; 卸载反向：删旧任务（若有）、杀 Server、反注册 DLL，再删文件（用户数据 %APPDATA%\Qingjian 保留；启动快捷方式 Inno 自动删）。
+; 卸载反向：删旧任务（若有）、杀 Server、反注册 DLL，再删文件（用户数据 %APPDATA%\EnglishInputMethod 保留；启动快捷方式 Inno 自动删）。
 ;
-; 升级：DLL 被加载进每个应用进程，文件锁着覆盖不了，所以 DLL 按版本起名（qingjian_tsf-<版本>.dll）并排装，
+; 升级：DLL 被加载进每个应用进程，文件锁着覆盖不了，所以 DLL 按版本起名（english_ime_tsf-<版本>.dll）并排装，
 ; 注册新的，旧的装完后删（删不掉的登记成重启后删）；已开着的应用继续用旧 DLL 直到重启，Server 两个版本都服务。
 ; Inno 的 CloseApplications 会用 Restart Manager 找出所有加载了 *.dll 的进程要求关闭——对输入法 DLL 就是关一切，故关掉；
 ; 只有 Server / 设置程序两个 exe 要覆盖，安装前自己 taskkill。
 ; Server 杀掉后，正在打字的应用里 DLL 连不上会自己把它拉起来（见 tsf 的 launch.rs），又占住 exe 和 mmap 着的数据：
-; 安装 / 卸载期间持有互斥体 Global\QingjianInstaller，新 DLL 看到它就不拉；旧版 DLL 不认得它，
+; 安装 / 卸载期间持有互斥体 Global\EnglishInputMethodInstaller，新 DLL 看到它就不拉；旧版 DLL 不认得它，
 ; 所以 Server exe 先改名腾位再杀、[Files] 里排最后装，新 exe 落地前 DLL 拉不起任何 Server。
 ;
 ; 版本号由打包脚本用 /DAppVersion=... 传入，缺省 0.1.0。用法见本目录 README.md。
@@ -24,23 +24,23 @@
 #ifndef AppVersionNumeric
   #define AppVersionNumeric AppVersion
 #endif
-#define AppName "青简"
-#define Publisher "青简"
-#define WebsiteUrl "https://qingjian.im"
+#define AppName "English Input Method"
+#define Publisher "07Stardust"
+#define WebsiteUrl "https://github.com/07Stardust/english-input-method"
 ; 脚本相对仓库根（ime/）：installer → windows → apps → ime
 #define Repo "..\..\.."
 ; 按版本起名的 TSF DLL（见文件头「升级」）。
-#define TsfDll "qingjian_tsf-" + AppVersion + ".dll"
-#define TsfDll32 "qingjian_tsf-" + AppVersion + "-x86.dll"
+#define TsfDll "english_ime_tsf-" + AppVersion + ".dll"
+#define TsfDll32 "english_ime_tsf-" + AppVersion + "-x86.dll"
 
 [Setup]
-AppId={{A7E3C1F2-5B94-4D6A-9C0E-2F8B1D3A6E70}
+AppId={{0EC655F8-99A2-4F06-B98E-E1D87C331596}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#Publisher}
 AppSupportURL={#WebsiteUrl}
 VersionInfoVersion={#AppVersionNumeric}
-DefaultDirName={autopf}\Qingjian
+DefaultDirName={autopf}\EnglishInputMethod
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
@@ -51,7 +51,7 @@ PrivilegesRequired=admin
 ; 别让 Restart Manager 去关所有加载了 DLL 的应用（那是每一个有文本框的应用）。
 CloseApplications=no
 OutputDir={#Repo}\target\installer
-OutputBaseFilename=qingjian-{#AppVersion}-windows-x86_64-setup
+OutputBaseFilename=english-input-method-{#AppVersion}-windows-x86_64-setup
 SetupIconFile={#Repo}\apps\windows\tsf\resources\qingjian.ico
 UninstallDisplayIcon={app}\qingjian.ico
 Compression=lzma2
@@ -67,11 +67,14 @@ Name: "chs"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 FinishedLabel=安装完成。请注销后重新登录（或重启电脑），青简才会在所有应用里生效。%n%n不方便注销的话，先关掉再重新打开要打字的应用也可以。
 
 [Files]
+Source: "{#Repo}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Repo}\assets\study\*"; DestDir: "{app}\assets\study"; Flags: ignoreversion
+Source: "{#Repo}\assets\glossary\glossary-en.tsv"; DestDir: "{app}\assets\glossary"; Flags: ignoreversion
 ; —— 二进制 ——
 ; DLL 按版本起名并排装；卸载时若仍被占用，登记成重启后删。
-Source: "{#Repo}\target\release\qingjian_tsf.dll";      DestDir: "{app}"; DestName: "{#TsfDll}"; Flags: ignoreversion uninsrestartdelete
-Source: "{#Repo}\target\i686-pc-windows-msvc\release\qingjian_tsf.dll"; DestDir: "{app}"; DestName: "{#TsfDll32}"; Flags: ignoreversion uninsrestartdelete
-Source: "{#Repo}\target\release\qingjian-settings.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Repo}\target\release\english_ime_tsf.dll";      DestDir: "{app}"; DestName: "{#TsfDll}"; Flags: ignoreversion uninsrestartdelete
+Source: "{#Repo}\target\i686-pc-windows-msvc\release\english_ime_tsf.dll"; DestDir: "{app}"; DestName: "{#TsfDll32}"; Flags: ignoreversion uninsrestartdelete
+Source: "{#Repo}\target\release\english-ime-settings.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; 设置程序自带一份 Windows App Runtime（自包含部署：Windows 10 上机器装的框架包用不了，见 docs\notes\windows-win10.md）；
 ; 文件由 build.ps1 按 settings-runtime.txt 从 target\release 挑进 target\installer\settings-runtime，必须与 exe 同级。
 Source: "{#Repo}\target\installer\settings-runtime\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -103,23 +106,23 @@ Source: "{#Repo}\assets\levels\levels-ja.tsv";   DestDir: "{app}\assets\levels";
 Source: "{#Repo}\assets\wubi\wubi86.tsv";        DestDir: "{app}\assets\wubi";   Flags: ignoreversion
 Source: "{#Repo}\assets\sample\dict.tsv";        DestDir: "{app}\assets\sample"; Flags: ignoreversion
 ; —— Server 放最后：它一落地，旧版 DLL 就能把它拉起来并占住数据文件（见文件头）——
-Source: "{#Repo}\target\release\qingjian-server.exe";   DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Repo}\target\release\english-ime-server.exe";   DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\青简设置"; Filename: "{app}\qingjian-settings.exe"; IconFilename: "{app}\qingjian.ico"
+Name: "{group}\青简设置"; Filename: "{app}\english-ime-settings.exe"; IconFilename: "{app}\qingjian.ico"
 Name: "{group}\卸载青简"; Filename: "{uninstallexe}"
 ; 登录自启：登录时 Explorer 走 ShellExecute 拉起本快捷方式 → AppInfo 授予 uiAccess，候选窗才能盖过商店 / 任务栏搜索。
 ; 用 {commonstartup}（所有用户「启动」文件夹）而非 {userstartup}：本安装器是 admin 机器级安装，
 ; admin 模式下写每用户区会落到「谁提权就写谁」的 profile（Inno 会告警且可能不是目标用户）；
 ; 机器级「启动」项对每个登录用户都在其会话里由该用户的 Explorer 拉起，仍是 per-user 运行、仍授予 uiAccess。
 ; （计划任务直接拉起拿不到 uiAccess，故不用 schtasks。）
-Name: "{commonstartup}\青简 Server"; Filename: "{app}\qingjian-server.exe"; WorkingDir: "{app}"; IconFilename: "{app}\qingjian.ico"
+Name: "{commonstartup}\青简 Server"; Filename: "{app}\english-ime-server.exe"; WorkingDir: "{app}"; IconFilename: "{app}\qingjian.ico"
 
 [Run]
 ; ① UWP/AppContainer 应用要能读安装目录才能加载 DLL（*S-1-15-2-1 = ALL APPLICATION PACKAGES，按 SID 与语言无关）。
 Filename: "{sys}\icacls.exe"; Parameters: """{app}"" /grant *S-1-15-2-1:(OI)(CI)RX /T /C /Q"; \
   Flags: runhidden waituntilterminated; StatusMsg: "配置应用容器权限…"
-; ② 注册文本服务（写 HKCR + 图标到 %ProgramData%\Qingjian\qingjian.ico）。注册的是本版本的 DLL，
+; ② 注册文本服务（写 HKCR + 图标到 %ProgramData%\EnglishInputMethod\qingjian.ico）。注册的是本版本的 DLL，
 ;    InprocServer32 指向新文件；旧版本的 DLL **不能** regsvr32 /u（那会把整个 CLSID 注销掉）。
 Filename: "{sys}\regsvr32.exe"; Parameters: "/s ""{app}\{#TsfDll}"""; \
   Flags: runhidden waituntilterminated; StatusMsg: "注册输入法…"
@@ -131,11 +134,11 @@ Filename: "{syswow64}\regsvr32.exe"; Parameters: "/s ""{app}\{#TsfDll32}"""; \
 
 [UninstallRun]
 ; 反向：先删登录任务、杀 Server / 设置程序、反注册 DLL，Inno 再删文件（DLL 若仍被占用，重启后删）。
-Filename: "{sys}\schtasks.exe"; Parameters: "/delete /tn ""Qingjian Server"" /f"; \
+Filename: "{sys}\schtasks.exe"; Parameters: "/delete /tn ""EnglishInputMethod Server"" /f"; \
   Flags: runhidden; RunOnceId: "DelLogonTask"
-Filename: "{sys}\taskkill.exe"; Parameters: "/im qingjian-server.exe /f"; \
+Filename: "{sys}\taskkill.exe"; Parameters: "/im english-ime-server.exe /f"; \
   Flags: runhidden; RunOnceId: "KillServer"
-Filename: "{sys}\taskkill.exe"; Parameters: "/im qingjian-settings.exe /f"; \
+Filename: "{sys}\taskkill.exe"; Parameters: "/im english-ime-settings.exe /f"; \
   Flags: runhidden; RunOnceId: "KillSettings"
 Filename: "{sys}\regsvr32.exe"; Parameters: "/u /s ""{app}\{#TsfDll}"""; \
   Flags: runhidden; RunOnceId: "UnregDll"
@@ -144,7 +147,7 @@ Filename: "{syswow64}\regsvr32.exe"; Parameters: "/u /s ""{app}\{#TsfDll32}"""; 
 
 [InstallDelete]
 ; 更早版本装在当前用户「启动」文件夹里的自启快捷方式：与机器级那份并存会起两个 Server（两条状态条）。
-Type: files; Name: "{userstartup}\Qingjian Server.lnk"
+Type: files; Name: "{userstartup}\EnglishInputMethod Server.lnk"
 ; 更早版本装的模型三件套（现在只带正式命名的 .qjm）：留着白占 56 MB。
 Type: files; Name: "{app}\data\model\model.safetensors"
 Type: files; Name: "{app}\data\model\config.json"
@@ -154,8 +157,8 @@ Type: filesandordirs; Name: "{app}\codes"
 
 [UninstallDelete]
 ; 历次升级留下的旧版本 DLL（正常在升级时就删了；仍被占用的会留到这里）。
-Type: files; Name: "{app}\qingjian_tsf-*.dll"
-Type: files; Name: "{app}\qingjian-server.old-*.exe"
+Type: files; Name: "{app}\english_ime_tsf-*.dll"
+Type: files; Name: "{app}\english-ime-server.old-*.exe"
 
 [Code]
 function CreateMutex(Attributes: Longint; InitialOwner: BOOL; Name: String): THandle;
@@ -164,7 +167,7 @@ function CreateMutex(Attributes: Longint; InitialOwner: BOOL; Name: String): THa
 { 安装 / 卸载期间持有的互斥体，名字与 tsf 的 launch.rs 一致；句柄不关，进程退出时系统收回。 }
 procedure HoldInstallerMutex;
 begin
-  if CreateMutex(0, False, 'Global\QingjianInstaller') = 0 then
+  if CreateMutex(0, False, 'Global\EnglishInputMethodInstaller') = 0 then
     Log('建安装互斥体失败');
 end;
 
@@ -180,15 +183,15 @@ begin
   Result := True;
 end;
 
-{ 运行中的 exe 不能覆盖但能改名：改成 qingjian-server.old-<随机>.exe 腾出名字，旧版 DLL 就拉不起它（见文件头）。
+{ 运行中的 exe 不能覆盖但能改名：改成 english-ime-server.old-<随机>.exe 腾出名字，旧版 DLL 就拉不起它（见文件头）。
   装完由 DeleteStaleFiles 删掉。 }
 procedure RetireServerExe;
 var
   Path: String;
 begin
-  Path := ExpandConstant('{app}\qingjian-server.exe');
+  Path := ExpandConstant('{app}\english-ime-server.exe');
   if FileExists(Path) then
-    if not RenameFile(Path, ExpandConstant('{app}\qingjian-server.old-') + IntToStr(Random(1000000)) + '.exe') then
+    if not RenameFile(Path, ExpandConstant('{app}\english-ime-server.old-') + IntToStr(Random(1000000)) + '.exe') then
       Log('改名旧 Server 失败: ' + Path);
 end;
 
@@ -201,7 +204,7 @@ begin
 end;
 
 { 同版本重装（开发期反复装）：目标文件名与已加载的 DLL 撞名，覆盖不了但 Windows 允许改名，
-  先把它改成 qingjian_tsf-<版本>.old-<随机>.dll 腾出名字，装完由 DeleteStaleDlls 删掉 / 登记重启后删。 }
+  先把它改成 english_ime_tsf-<版本>.old-<随机>.dll 腾出名字，装完由 DeleteStaleDlls 删掉 / 登记重启后删。 }
 procedure RetireLoadedDll(const Name: String);
 var
   Path, Retired: String;
@@ -209,7 +212,7 @@ begin
   Path := ExpandConstant('{app}\') + Name;
   if FileExists(Path) then
   begin
-    Retired := ExpandConstant('{app}\qingjian_tsf-{#AppVersion}.old-') + IntToStr(Random(1000000)) + '.dll';
+    Retired := ExpandConstant('{app}\english_ime_tsf-{#AppVersion}.old-') + IntToStr(Random(1000000)) + '.dll';
     if not RenameFile(Path, Retired) then
       Log('改名旧 DLL 失败: ' + Path);
   end;
@@ -220,8 +223,8 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   RetireServerExe;
-  KillProcess('qingjian-server.exe');
-  KillProcess('qingjian-settings.exe');
+  KillProcess('english-ime-server.exe');
+  KillProcess('english-ime-settings.exe');
   RetireLoadedDll('{#TsfDll}');
   RetireLoadedDll('{#TsfDll32}');
   Result := '';
@@ -234,7 +237,7 @@ procedure DeleteLegacyLogonTask;
 var
   ResultCode: Integer;
 begin
-  Exec('schtasks.exe', '/delete /tn "Qingjian Server" /f', '',
+  Exec('schtasks.exe', '/delete /tn "EnglishInputMethod Server" /f', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
@@ -245,7 +248,7 @@ var
   Found: TFindRec;
 begin
   Dir := ExpandConstant('{app}');
-  if FindFirst(Dir + '\qingjian-server.old-*.exe', Found) then
+  if FindFirst(Dir + '\english-ime-server.old-*.exe', Found) then
   begin
     try
       repeat
@@ -267,7 +270,7 @@ var
   Found: TFindRec;
 begin
   Dir := ExpandConstant('{app}');
-  if FindFirst(Dir + '\qingjian_tsf*.dll', Found) then
+  if FindFirst(Dir + '\english_ime_tsf*.dll', Found) then
   begin
     try
       repeat
@@ -311,6 +314,6 @@ begin
   Result := True;
   if (CurPageID = wpFinished) and (not WizardSilent) then
     ShellExecAsOriginalUser(
-      '', ExpandConstant('{app}\qingjian-server.exe'), '', '',
+      '', ExpandConstant('{app}\english-ime-server.exe'), '', '',
       SW_SHOWNORMAL, ewNoWait, ErrorCode);
 end;

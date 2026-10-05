@@ -6,7 +6,7 @@
 # 见 apps\windows\settings\build.rs 与 docs\notes\windows-win10.md。
 #
 # build.ps1 按本清单从 target\release 挑进 target\installer\settings-runtime，qingjian.iss 再整个目录装进 {app}
-# （必须与 qingjian-settings.exe 同级：Reactor 认的就是 exe 旁边有没有 Microsoft.WindowsAppRuntime.dll）。
+# （必须与 english-ime-settings.exe 同级：Reactor 认的就是 exe 旁边有没有 Microsoft.WindowsAppRuntime.dll）。
 coremessagingxp.dll
 dcompi.dll
 dwmcorei.dll

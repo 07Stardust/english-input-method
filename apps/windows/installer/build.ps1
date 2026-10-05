@@ -1,12 +1,12 @@
-﻿<#
+<#
 .SYNOPSIS
-    在 Windows 上打青简安装包：release 构建三个产物 + 用 Inno Setup 编 qingjian.iss。
+    在 Windows 上打 English Input Method 安装包：release 构建三个产物 + 用 Inno Setup 编 qingjian.iss。
 .DESCRIPTION
     在编译机（MSVC 工具链 + Inno Setup）上跑。步骤：
       1) cargo build --release 出 DLL / Server / 设置程序，再单独编一份 32 位 DLL；
       2) 从 apps\windows\server\Cargo.toml 读版本号（-dev 版接 git 短哈希）；
       3) 找 ISCC.exe（PATH 或常见安装位置）；
-      4) iscc /DAppVersion=<版本> 编脚本，成品在 target\installer\qingjian-<版本>-windows-x86_64-setup.exe。
+      4) iscc /DAppVersion=<版本> 编脚本，成品在 target\installer\english-input-method-<版本>-windows-x86_64-setup.exe。
     随包数据（.qj / .tsv）直接由 .iss 从仓库 data\generated 与 assets 里取，不另建暂存目录；
     确保打包前 data\generated 里的 .qj 是最新的（bundle 流程见仓库 CLAUDE.md）。
     uiAccess 跟着 -Sign 走，不用手设 QINGJIAN_UIACCESS（见 -Sign）。
@@ -48,10 +48,10 @@ if (-not $SkipBuild) {
 
 # 缺一个产物就早报错。
 $targets = @(
-    'release\qingjian_tsf.dll',
-    'i686-pc-windows-msvc\release\qingjian_tsf.dll',
-    'release\qingjian-server.exe',
-    'release\qingjian-settings.exe'
+    'release\english_ime_tsf.dll',
+    'i686-pc-windows-msvc\release\english_ime_tsf.dll',
+    'release\english-ime-server.exe',
+    'release\english-ime-settings.exe'
 )
 foreach ($t in $targets) {
     $p = Join-Path $Repo "target\$t"
@@ -65,7 +65,12 @@ $runtimeStage = Join-Path $Repo 'target\installer\settings-runtime'
 $runtimeList  = Join-Path $PSScriptRoot 'settings-runtime.txt'
 # 清单是 UTF-8 且带中文注释：不指定编码时 PowerShell 5.1 按 GBK 读，注释末尾的字节会吞掉换行，紧跟其后的一项被当成注释漏掉。
 $wanted = Get-Content $runtimeList -Encoding UTF8 | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object { $_.Trim() }
-if (Test-Path $runtimeStage) { Remove-Item $runtimeStage -Recurse -Force }
+$stageFullPath = [IO.Path]::GetFullPath($runtimeStage)
+$repoFullPath = [IO.Path]::GetFullPath($Repo).TrimEnd('\') + '\'
+if (-not $stageFullPath.StartsWith($repoFullPath, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Runtime staging path is outside the repository: $stageFullPath"
+}
+if (Test-Path -LiteralPath $stageFullPath) { Remove-Item -LiteralPath $stageFullPath -Recurse -Force }
 New-Item -ItemType Directory -Path $runtimeStage -Force | Out-Null
 $missing = @()
 foreach ($name in $wanted) {
@@ -132,5 +137,5 @@ Write-Host "用 $iscc" -ForegroundColor Cyan
 & $iscc "/DAppVersion=$Version" "/DAppVersionNumeric=$VersionNumeric" $Iss
 if ($LASTEXITCODE -ne 0) { throw "iscc 失败（退出码 $LASTEXITCODE）" }
 
-$out = Join-Path $Repo "target\installer\qingjian-$Version-windows-x86_64-setup.exe"
+$out = Join-Path $Repo "target\installer\english-input-method-$Version-windows-x86_64-setup.exe"
 Write-Host "完成：$out" -ForegroundColor Green

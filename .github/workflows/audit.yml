@@ -1,28 +1,29 @@
-# 依赖已知漏洞（RustSec）：每周一跑一次，Cargo.lock 变了也跑。
-name: audit
-
+# 已知漏洞检查，仅报告当前私人仓库，不自动创建 issue。
+name: Dependency audit
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 2 * * 1'
   push:
-    paths: ['Cargo.lock', '.github/workflows/audit.yml']
+    paths: ['Cargo.lock', '.cargo/audit.toml', '.github/workflows/audit.yml']
   pull_request:
-    paths: ['Cargo.lock']
-
-# audit-check 要往提交上写 check run（checks: write）、发现漏洞时开 issue（issues: write）；少了 checks 会在 push 事件上报 "Resource not accessible by integration"
+    paths: ['Cargo.lock', '.cargo/audit.toml']
 permissions:
   contents: read
-  checks: write
-  issues: write
-
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          toolchain: 1.96.0
+      - name: Check RustSec database
+        shell: pwsh
+        run: |
+          cargo install cargo-audit --version 0.22.2 --locked --no-default-features
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo audit
+          exit $LASTEXITCODE
