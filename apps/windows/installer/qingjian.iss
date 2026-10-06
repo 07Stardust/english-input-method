@@ -109,15 +109,26 @@ Source: "{#Repo}\assets\sample\dict.tsv";        DestDir: "{app}\assets\sample";
 ; —— Server 放最后：它一落地，旧版 DLL 就能把它拉起来并占住数据文件（见文件头）——
 Source: "{#Repo}\target\release\english-ime-server.exe";   DestDir: "{app}"; Flags: ignoreversion
 
+; 随发布包附带来源、署名及现有数据许可证。
+Source: "{#Repo}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Repo}\docs\design\landscape.md"; DestDir: "{app}\licenses"; Flags: ignoreversion
+Source: "{#Repo}\assets\emoji\LICENSE-unicode.txt"; DestDir: "{app}\assets\emoji"; Flags: ignoreversion
+Source: "{#Repo}\assets\levels\README.md"; DestDir: "{app}\assets\levels"; Flags: ignoreversion
+Source: "{#Repo}\assets\glossary\README.md"; DestDir: "{app}\assets\glossary"; Flags: ignoreversion
+Source: "{#Repo}\assets\wubi\LICENSE"; DestDir: "{app}\assets\wubi"; Flags: ignoreversion
+Source: "{#Repo}\assets\wubi\README.md"; DestDir: "{app}\assets\wubi"; Flags: ignoreversion
+Source: "{#Repo}\assets\lexicon\00_meta\*LICENSE*"; DestDir: "{app}\licenses\lexicon"; Flags: ignoreversion
+Source: "{#Repo}\assets\lexicon\05_english\sources\*LICENSE*"; DestDir: "{app}\licenses\english"; Flags: ignoreversion
+
 [Icons]
-Name: "{group}\青简设置"; Filename: "{app}\english-ime-settings.exe"; IconFilename: "{app}\qingjian.ico"
-Name: "{group}\卸载青简"; Filename: "{uninstallexe}"
+Name: "{group}\English Input Method 设置"; Filename: "{app}\english-ime-settings.exe"; IconFilename: "{app}\qingjian.ico"
+Name: "{group}\卸载 English Input Method"; Filename: "{uninstallexe}"
 ; 登录自启：登录时 Explorer 走 ShellExecute 拉起本快捷方式 → AppInfo 授予 uiAccess，候选窗才能盖过商店 / 任务栏搜索。
 ; 用 {commonstartup}（所有用户「启动」文件夹）而非 {userstartup}：本安装器是 admin 机器级安装，
 ; admin 模式下写每用户区会落到「谁提权就写谁」的 profile（Inno 会告警且可能不是目标用户）；
 ; 机器级「启动」项对每个登录用户都在其会话里由该用户的 Explorer 拉起，仍是 per-user 运行、仍授予 uiAccess。
 ; （计划任务直接拉起拿不到 uiAccess，故不用 schtasks。）
-Name: "{commonstartup}\青简 Server"; Filename: "{app}\english-ime-server.exe"; WorkingDir: "{app}"; IconFilename: "{app}\qingjian.ico"
+Name: "{commonstartup}\English Input Method Server"; Filename: "{app}\english-ime-server.exe"; WorkingDir: "{app}"; IconFilename: "{app}\qingjian.ico"
 
 [Run]
 ; ① UWP/AppContainer 应用要能读安装目录才能加载 DLL（*S-1-15-2-1 = ALL APPLICATION PACKAGES，按 SID 与语言无关）。

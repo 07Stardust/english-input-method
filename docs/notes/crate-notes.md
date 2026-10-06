@@ -360,3 +360,5 @@ Unix socket 用共享长度前缀与 Frame（当前公共版本 7，与 `PROTOCO
 `[general] preedit` 使用已有 `both` / `inline` / `window`；没有新增 Linux 自绘配置。详见 [linux-fcitx5.md](linux-fcitx5.md)。
 
 CET 来源转换工具：tools/study；生产导入器命令示例：apps/cli/examples/import_study.rs。词书及校验信息：assets/study/cet。导入例程保留同名词书复习记录，并将该词书设为 CET6 考试模式，不修改隐私开关。
+
+公开测试版：Windows 包版本统一为 0.1.5-alpha.1，使用本项目新绘制的 E 图标（兼容资源路径保留 qingjian.ico 文件名），快捷方式使用 English Input Method 名称；README 面向本产品，原上游介绍移至 notes/upstream-readme.md。第三方数据来源与许可证见根目录 THIRD-PARTY-NOTICES.md。
